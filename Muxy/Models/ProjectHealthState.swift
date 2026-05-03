@@ -72,13 +72,19 @@ final class ProjectHealthState {
 
     private func refreshWorkflowConfigs(projectPath: String) {
         let fm = FileManager.default
-        let checks: [(String, String, String, String?)] = [
-            ("githooks", ".githooks", "Pre-commit lint + pre-push gate", nil),
-            ("sentrux", ".sentrux", "Architectural quality gates", nil),
-            ("archon", ".archon", "AI workflow definitions", nil),
-            ("graphify", ".graphify", "Knowledge graph tracking", "graphify scan . --quiet"),
-            ("gitleaks", ".gitleaks.toml", "Secret scanning", nil),
-            ("doppler", ".doppler.yaml", "Secrets management", "doppler setup"),
+        struct CheckDef {
+            let id: String
+            let path: String
+            let desc: String
+            let action: String?
+        }
+        let checks = [
+            CheckDef(id: "githooks", path: ".githooks", desc: "Pre-commit lint + pre-push gate", action: nil),
+            CheckDef(id: "sentrux", path: ".sentrux", desc: "Architectural quality gates", action: nil),
+            CheckDef(id: "archon", path: ".archon", desc: "AI workflow definitions", action: nil),
+            CheckDef(id: "graphify", path: ".graphify", desc: "Knowledge graph tracking", action: "graphify scan . --quiet"),
+            CheckDef(id: "gitleaks", path: ".gitleaks.toml", desc: "Secret scanning", action: nil),
+            CheckDef(id: "doppler", path: ".doppler.yaml", desc: "Secrets management", action: "doppler setup"),
         ]
         let clickablePaths: [String: String] = [
             ".githooks": ".githooks",
@@ -88,31 +94,40 @@ final class ProjectHealthState {
             ".gitleaks.toml": ".gitleaks.toml",
             ".doppler.yaml": ".doppler.yaml",
         ]
-        workflowItems = checks.map { id, path, desc, action in
-            let exists = fm.fileExists(atPath: (projectPath as NSString).appendingPathComponent(path))
+        workflowItems = checks.map { check in
+            let exists = fm.fileExists(atPath: (projectPath as NSString).appendingPathComponent(check.path))
             return WorkflowItem(
-                id: id,
-                name: path,
-                relativePath: clickablePaths[path] ?? path,
-                description: desc,
+                id: check.id,
+                name: check.path,
+                relativePath: clickablePaths[check.path] ?? check.path,
+                description: check.desc,
                 status: exists ? .installed : .missing,
-                action: action
+                action: check.action
             )
         }
     }
 
     private func refreshGlobalTools() {
-        let tools: [(String, String, String?)] = [
-            ("pi", "pi --version 2>&1", "npm install -g @mariozechner/pi-coding-agent"),
-            ("sentrux", "sentrux --version 2>&1", "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh"),
-            ("swiftlint", "swiftlint version 2>&1", "brew install swiftlint"),
-            ("swiftformat", "swiftformat --version 2>&1", "brew install swiftformat"),
-            ("gh", "gh --version 2>&1 | head -1", "brew install gh"),
+        struct ToolDef {
+            let name: String
+            let checkCmd: String
+            let hint: String?
+        }
+        let tools = [
+            ToolDef(name: "pi", checkCmd: "pi --version 2>&1", hint: "npm install -g @mariozechner/pi-coding-agent"),
+            ToolDef(
+                name: "sentrux",
+                checkCmd: "sentrux --version 2>&1",
+                hint: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh"
+            ),
+            ToolDef(name: "swiftlint", checkCmd: "swiftlint version 2>&1", hint: "brew install swiftlint"),
+            ToolDef(name: "swiftformat", checkCmd: "swiftformat --version 2>&1", hint: "brew install swiftformat"),
+            ToolDef(name: "gh", checkCmd: "gh --version 2>&1 | head -1", hint: "brew install gh"),
         ]
-        globalTools = tools.map { name, checkCmd, hint in
+        globalTools = tools.map { tool in
             let task = Process()
             task.launchPath = "/bin/bash"
-            task.arguments = ["-c", checkCmd]
+            task.arguments = ["-c", tool.checkCmd]
             let out = Pipe()
             task.standardOutput = out
             task.standardError = out
@@ -122,17 +137,17 @@ final class ProjectHealthState {
                 let data = out.fileHandleForReading.readDataToEndOfFile()
                 let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
                 let installed = task.terminationStatus == 0 && !(version?.isEmpty ?? true)
-                let location = installed ? which(name) : nil
+                let location = installed ? which(tool.name) : nil
                 return GlobalToolItem(
-                    id: name,
-                    name: name,
+                    id: tool.name,
+                    name: tool.name,
                     installed: installed,
                     version: version,
                     location: location,
-                    installHint: installed ? nil : hint
+                    installHint: installed ? nil : tool.hint
                 )
             } catch {
-                return GlobalToolItem(id: name, name: name, installed: false, installHint: hint)
+                return GlobalToolItem(id: tool.name, name: tool.name, installed: false, installHint: tool.hint)
             }
         }
     }

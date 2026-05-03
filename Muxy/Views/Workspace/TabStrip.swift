@@ -286,4 +286,3 @@ struct PaneTabStrip: View {
 }
 
 private typealias TabFramePreferenceKey = UUIDFramePreferenceKey<TabFrameTag>
-

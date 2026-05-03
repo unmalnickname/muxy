@@ -268,5 +268,3 @@ struct ProjectRow: View {
         )
     }
 }
-
-

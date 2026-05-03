@@ -211,6 +211,3 @@ struct Sidebar: View {
         }
     }
 }
-
-
-

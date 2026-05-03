@@ -271,8 +271,8 @@ struct ProjectHealthPanel: View {
 
     private var actionsSection: some View {
         HStack(spacing: 8) {
-            let missing = state.workflowItems.filter { $0.status == .missing }.count
-            let toolMissing = state.globalTools.filter { !$0.installed }.count
+            let missing = state.workflowItems.count(where: { $0.status == .missing })
+            let toolMissing = state.globalTools.count(where: { !$0.installed })
             let total = missing + toolMissing
             if total > 0 {
                 Button {
@@ -361,8 +361,8 @@ struct ProjectHealthPanel: View {
         guard let window = NSApp.keyWindow ?? NSApp.mainWindow,
               alert.runModal() == .alertFirstButtonReturn
         else { return }
-        let installs = state.globalTools.filter { !$0.installed }.compactMap { $0.installHint }
-        let setups = state.workflowItems.filter { $0.status == .missing }.compactMap { $0.action }
+        let installs = state.globalTools.filter { !$0.installed }.compactMap(\.installHint)
+        let setups = state.workflowItems.filter { $0.status == .missing }.compactMap(\.action)
         for cmd in installs + setups {
             runAction(cmd)
         }

@@ -974,6 +974,3 @@ private struct MainContentArea: View {
         worktreeStore.preferred(for: project.id, matching: appState.activeWorktreeID[project.id])?.path ?? project.path
     }
 }
-
-
-

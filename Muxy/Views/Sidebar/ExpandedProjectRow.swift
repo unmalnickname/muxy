@@ -413,5 +413,3 @@ struct ExpandedProjectRow: View {
         )
     }
 }
-
-

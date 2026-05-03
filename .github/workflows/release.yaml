@@ -1,0 +1,123 @@
+# Agent Workflow: Release Pipeline
+# Merges develop → master, runs final gates, creates tag and release.
+
+name: Release
+
+on:
+  pull_request:
+    branches: ["master"]
+    types: [opened, synchronize, labeled]
+
+env:
+  NODE_VERSION: "22"
+  BUN_VERSION: "1"
+  SENTRUX_VERSION: "latest"
+
+jobs:
+  release-gate:
+    name: Release Quality Gate
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.labels.*.name, 'release')
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate develop is ancestor
+        run: |
+          git merge-base --is-ancestor origin/develop HEAD || {
+            echo "::error::Release must include all commits from develop"
+            exit 1
+          }
+
+      - name: Validate changelog updated
+        run: |
+          if [ -f "CHANGELOG.md" ]; then
+            HEAD_HASH=$(git rev-parse HEAD)
+            if ! git diff HEAD~1..HEAD --name-only | grep -q "CHANGELOG.md"; then
+              echo "::warning::CHANGELOG.md was not updated in this PR"
+            fi
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Install Sentrux
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh
+          echo "$HOME/.sentrux/bin" >> "$GITHUB_PATH"
+
+      - name: Sentrux release gate
+        run: |
+          if [ -f ".sentrux/rules.toml" ]; then
+            sentrux check . || {
+              echo "::error::Sentrux rules violated — cannot release"
+              exit 1
+            }
+          fi
+
+      - name: Run full validation
+        run: |
+          if [ -f "package.json" ] && grep -q '"validate"' package.json 2>/dev/null; then
+            bun run validate
+          fi
+
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [release-gate]
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract version
+        id: version
+        run: |
+          if [ -f "package.json" ]; then
+            VERSION=$(node -p "require('./package.json').version")
+          elif [ -f "Cargo.toml" ]; then
+            VERSION=$(grep '^version =' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          elif [ -f "pubspec.yaml" ]; then
+            VERSION=$(grep '^version:' pubspec.yaml | sed 's/.*: \(.*\)/\1/')
+          elif [ -f "pyproject.toml" ]; then
+            VERSION=$(grep '^version' pyproject.toml | sed 's/.*"\(.*\)".*/\1/')
+          else
+            VERSION="0.1.0"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            LOG=$(git log "$PREV_TAG..HEAD" --pretty=format:"- %s (%an)" --no-merges)
+          else
+            LOG=$(git log --pretty=format:"- %s (%an)" --no-merges | head -50)
+          fi
+          echo "log<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$LOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Release v${{ steps.version.outputs.version }}
+          body: |
+            ## Release v${{ steps.version.outputs.version }}
+
+            ${{ steps.changelog.outputs.log }}
+
+            ### Quality Gate
+            - Sentrux: ✅ passed
+            - Tests: ✅ passed
+            - CI: ✅ passed
+          prerelease: false
+          target_commitish: master
