@@ -1,0 +1,171 @@
+# Agent Workflow: Gitleaks secret scanning rules
+# Extended for AI agent-specific leak patterns.
+
+title = "Agent Workflow Secret Scan"
+
+[extend]
+# Use the Gitleaks default rules as base
+useDefault = true
+
+# Custom rules for AI agent patterns
+[[rules]]
+id = "ai-agent-api-key-inline"
+description = "AI agent hardcoded API key in source"
+regex = '''(?i)(?:api[_-]?key|apikey|api[_-]?secret|access[_-]?token|auth[_-]?token)\s*[:=]\s*["'][A-Za-z0-9_\-]{20,}["']'''
+tags = ["ai-agent", "api-key", "credentials"]
+
+[[rules]]
+id = "ai-agent-openai-key"
+description = "OpenAI API key in code (not env)"
+regex = '''(?i)sk-[A-Za-z0-9]{32,}'''
+tags = ["ai-agent", "openai", "api-key"]
+
+[[rules]]
+id = "ai-agent-anthropic-key"
+description = "Anthropic API key in code (not env)"
+regex = '''(?i)sk-ant-[A-Za-z0-9]{32,}'''
+tags = ["ai-agent", "anthropic", "api-key"]
+
+[[rules]]
+id = "ai-agent-doppler-token"
+description = "Doppler service token in code"
+regex = '''(?i)dp\.(?:st|pt|mlt)\.[A-Za-z0-9]{40,}'''
+tags = ["ai-agent", "doppler", "token"]
+
+[[rules]]
+id = "ai-agent-hardcoded-jwt"
+description = "JWT or session token literal in source"
+regex = '''eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'''
+tags = ["ai-agent", "jwt", "token"]
+
+[[rules]]
+id = "ai-agent-test-credential"
+description = "Test/example credentials that look real"
+regex = '''(?i)(?:password|passwd|pwd)\s*[:=]\s*["'][A-Za-z0-9!@#$%^&*]{8,}["']'''
+tags = ["ai-agent", "credentials", "test"]
+
+[[rules]]
+id = "ai-agent-env-var-inline"
+description = "Environment variable with secret value inline"
+regex = '''(?:DATABASE_URL|REDIS_URL|MONGO_URI|POSTGRES_URL)\s*[:=]\s*["'][A-Za-z0-9_:/@.\-]{4,}["']'''
+tags = ["ai-agent", "database", "credentials"]
+
+[[rules]]
+id = "ai-agent-private-key"
+description = "Private key block in source code"
+regex = '''-----BEGIN (?:RSA |EC |DSA |OPENSSH )?PRIVATE KEY-----'''
+tags = ["ai-agent", "private-key", "crypto"]
+
+[[rules]]
+id = "ai-agent-aws-key"
+description = "AWS access key in code"
+regex = '''(?:AKIA|ASIA)[A-Z0-9]{16}'''
+tags = ["ai-agent", "aws", "credentials"]
+
+[[rules]]
+id = "ai-agent-gh-token"
+description = "GitHub personal access token in code"
+regex = '''gh[ps]_[A-Za-z0-9]{36,}'''
+tags = ["ai-agent", "github", "token"]
+
+# Chinese AI provider API keys
+[[rules]]
+id = "ai-agent-deepseek-key"
+description = "DeepSeek API key in code"
+regex = '''(?i)sk-[a-f0-9]{32,}'''
+tags = ["ai-agent", "deepseek", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-moonshot-key"
+description = "Moonshot/Kimi API key in code"
+regex = '''(?i)(?:moonshot|kimi)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "moonshot", "kimi", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-zhipu-key"
+description = "Zhipu AI (GLM) API key in code"
+regex = '''(?i)(?:zhipu|glm)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "zhipu", "glm", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-alibaba-key"
+description = "Alibaba Cloud / Tongyi / Qwen API key in code"
+regex = '''(?i)(?:tongyi|qwen|dashscope|alibaba)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "alibaba", "tongyi", "qwen", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-baidu-key"
+description = "Baidu ERNIE / Qianfan API key in code"
+regex = '''(?i)(?:baidu|ernie|qianfan)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "baidu", "ernie", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-bytedance-key"
+description = "ByteDance / Doubao / Ark API key in code"
+regex = '''(?i)(?:bytedance|doubao|ark)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "bytedance", "doubao", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-01ai-key"
+description = "01.AI (Yi) API key in code"
+regex = '''(?i)(?:01ai|yi[_-]?ai|lingyi)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "01ai", "yi", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-stepfun-key"
+description = "Stepfun (Step) API key in code"
+regex = '''(?i)(?:stepfun|step[_-]?api)[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "stepfun", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-minimax-key"
+description = "MiniMax API key in code"
+regex = '''(?i)(?:minimax|hailuo)[_-]?api[_-]?key\s*[:=]\s*["\'][A-Za-z0-9]{32,}["\']'''
+tags = ["ai-agent", "minimax", "api-key", "china"]
+
+[[rules]]
+id = "ai-agent-china-generic-key"
+description = "Generic Chinese AI platform key pattern"
+regex = '''(?i)(?:deepseek|moonshot|kimi|zhipu|glm[_-]?4|qwen|tongyi|dashscope|ernie|doubao|ark[_-]?api|yi[_-]?[34]?[05]?[bv]|step[_-]?[12]|minimax|hailuo)[_-]?(?:sk|api[_-]?key|token|secret)[\s"\'_:]{1,3}[A-Za-z0-9]{24,}'''
+tags = ["ai-agent", "china", "api-key", "generic"]
+
+# Allowlist trusted patterns
+[allowlist]
+description = "Known safe patterns"
+
+files = [
+    # Test fixtures
+    "(.*/)?test(s)?/.*",
+    "(.*/)?__tests__/.*",
+    "(.*/)?fixtures/.*",
+    # Lockfiles
+    "package-lock\\.json$",
+    "bun\\.lock$",
+    # Documentation examples
+    "(.*/)?docs/.*\\.md$",
+    # Config templates (not real secrets)
+    "\\.env\\.example$",
+    "\\.env\\.sample$",
+    # Dockerfiles (might have build args)
+    "Dockerfile$",
+    "Dockerfile\\..*$",
+    # Git
+    "\\.git/.*",
+]
+
+regexes = [
+    # Swift crypto type names (not actual secrets)
+    "Curve25519\\.Signing\\.PrivateKey",
+    # Placeholder values only
+    "(?i)(placeholder|your-|changeme|example|test|dummy|fake|todo)",
+    # Hash examples
+    "^[0-9a-f]{7}$",
+    # Example domains
+    "example\\.(com|org|net)",
+    # Localhost URLs (safe)
+    "localhost",
+    "127\\.0\\.0\\.1",
+    "0\\.0\\.0\\.0",
+    # Common test values
+    "password\\s*[:=]\\s*['\"]password['\"]",
+]

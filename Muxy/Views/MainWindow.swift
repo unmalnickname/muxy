@@ -20,40 +20,14 @@ struct MainWindow: View {
         static let maxWidth: CGFloat = 600
     }
 
-    private enum CloseConfirmationKind {
-        case lastTab
-        case unsavedEditor
-        case runningProcess
-
-        var title: String {
-            switch self {
-            case .lastTab:
-                "Close Project?"
-            case .unsavedEditor:
-                "Save Changes Before Closing?"
-            case .runningProcess:
-                "Close Tab?"
-            }
-        }
-
-        var message: String {
-            switch self {
-            case .lastTab:
-                "This is the last tab. Closing it will remove the project from the sidebar."
-            case .unsavedEditor:
-                "This file has unsaved changes. If you don't save, your changes will be lost."
-            case .runningProcess:
-                "A process is still running in this tab. Are you sure you want to close it?"
-            }
-        }
-    }
-
     @State private var vcsPanelVisible = false
     @State private var vcsPanelWidth: CGFloat = AttachedVCSLayout.defaultWidth
     @State private var vcsStates: [WorktreeKey: VCSTabState] = [:]
     @State private var fileTreePanelVisible = false
     @AppStorage("muxy.fileTreeWidth") private var fileTreePanelWidth: Double = .init(FileTreeLayout.defaultWidth)
     @State private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
+    @State private var healthPanelVisible = false
+    @State private var healthState = ProjectHealthState()
     @State private var showQuickOpen = false
     @State private var showWorktreeSwitcher = false
     @State private var isFullScreen = false
@@ -86,87 +60,22 @@ struct MainWindow: View {
             Rectangle().fill(MuxyTheme.border).frame(height: 1)
                 .background(MuxyTheme.bg)
 
-            HStack(spacing: 0) {
-                HStack(spacing: 0) {
-                    Sidebar()
-                    if !SidebarLayout.isHidden(expanded: sidebarExpanded, collapsedStyle: sidebarCollapsedStyle) {
-                        Rectangle().fill(MuxyTheme.border).frame(width: 1)
-                            .accessibilityHidden(true)
-                    }
-                }
-                .fixedSize(horizontal: true, vertical: false)
-                .background(MuxyTheme.bg)
-
-                ZStack {
-                    MuxyTheme.bg
-                    if let project = activeProject,
-                       appState.workspaceRoot(for: project.id) == nil,
-                       let worktree = resolvedActiveWorktree(for: project)
-                    {
-                        EmptyProjectPlaceholder(project: project) {
-                            appState.selectWorktree(projectID: project.id, worktree: worktree)
-                        }
-                    } else if projectsWithWorkspaces.isEmpty {
-                        WelcomeView()
-                    } else if let project = activeProjectWithWorkspace,
-                              let activeKey = appState.activeWorktreeKey(for: project.id)
-                    {
-                        ForEach(mountedWorktreeKeys(for: project), id: \.self) { key in
-                            TerminalArea(
-                                project: project,
-                                worktreeKey: key,
-                                isActiveProject: key == activeKey
-                            )
-                            .opacity(key == activeKey ? 1 : 0)
-                            .allowsHitTesting(key == activeKey)
-                            .zIndex(key == activeKey ? 1 : 0)
-                        }
-                    }
-                }
-
-                if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
-                    HStack(spacing: 0) {
-                        sidePanelResizeHandle { delta in
-                            vcsPanelWidth = max(
-                                AttachedVCSLayout.minWidth,
-                                min(AttachedVCSLayout.maxWidth, vcsPanelWidth - delta)
-                            )
-                        }
-                        VCSTabView(state: state, focused: false, onFocus: {})
-                            .frame(width: vcsPanelWidth)
-                    }
-                } else if fileTreePanelVisible, let treeState = activeFileTreeState {
-                    HStack(spacing: 0) {
-                        sidePanelResizeHandle { delta in
-                            let next = fileTreePanelWidth - Double(delta)
-                            fileTreePanelWidth = max(
-                                Double(FileTreeLayout.minWidth),
-                                min(Double(FileTreeLayout.maxWidth), next)
-                            )
-                        }
-                        FileTreeView(
-                            state: treeState,
-                            onOpenFile: { filePath in
-                                guard let projectID = appState.activeProjectID else { return }
-                                appState.openFile(filePath, projectID: projectID, preserveFocus: true)
-                            },
-                            onOpenTerminal: { directory in
-                                guard let projectID = appState.activeProjectID else { return }
-                                appState.dispatch(.createTabInDirectory(
-                                    projectID: projectID,
-                                    areaID: nil,
-                                    directory: directory
-                                ))
-                            },
-                            onFileMoved: { oldPath, newPath in
-                                appState.handleFileMoved(from: oldPath, to: newPath)
-                            }
-                        )
-                        .id(treeState.rootPath)
-                        .frame(width: CGFloat(fileTreePanelWidth))
-                    }
-                }
-            }
+            MainContentArea(
+                appState: appState,
+                projectStore: projectStore,
+                worktreeStore: worktreeStore,
+                sidebarExpanded: sidebarExpanded,
+                sidebarCollapsedStyle: sidebarCollapsedStyle,
+                sidebarExpandedStyle: sidebarExpandedStyle,
+                vcsPanelVisible: $vcsPanelVisible,
+                vcsPanelWidth: $vcsPanelWidth,
+                vcsStates: vcsStates,
+                fileTreePanelVisible: $fileTreePanelVisible,
+                fileTreePanelWidth: $fileTreePanelWidth,
+                fileTreeStates: fileTreeStates,
+                healthPanelVisible: $healthPanelVisible,
+                healthState: healthState
+            )
         }
         .environment(\.overlayActive, showQuickOpen || showWorktreeSwitcher)
         .overlay(alignment: toastAlignment) {
@@ -256,6 +165,9 @@ struct MainWindow: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .toggleFileTree)) { _ in
             toggleFileTreePanel()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleHealth)) { _ in
+            toggleHealthPanel()
         }
         .onChange(of: vcsPruneSignature) {
             pruneVCSStates()
@@ -667,6 +579,21 @@ struct MainWindow: View {
         vcsPanelVisible = isShowing
         if isShowing {
             fileTreePanelVisible = false
+            healthPanelVisible = false
+        }
+    }
+
+    private func toggleHealthPanel() {
+        guard let project = activeProject else {
+            healthPanelVisible = false
+            return
+        }
+        let isShowing = !healthPanelVisible
+        healthPanelVisible = isShowing
+        if isShowing {
+            vcsPanelVisible = false
+            fileTreePanelVisible = false
+            healthState.refresh(projectPath: activeWorktreePath(for: project))
         }
     }
 
@@ -684,6 +611,7 @@ struct MainWindow: View {
         fileTreePanelVisible = isShowing
         if isShowing {
             vcsPanelVisible = false
+            healthPanelVisible = false
         } else {
             NotificationCenter.default.post(name: .refocusActiveTerminal, object: nil)
         }
@@ -869,197 +797,183 @@ struct MainWindow: View {
     }
 }
 
-private struct WindowTitleUpdater: NSViewRepresentable {
-    let title: String
-
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
-        DispatchQueue.main.async {
-            view.window?.title = title
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let window = nsView.window, window.title != title else { return }
-        window.title = title
-    }
-}
-
-private struct FileTreeSelectionSync: ViewModifier {
-    let filePath: String?
-    let panelVisible: Bool
-    let sync: (String?) -> Void
-
-    func body(content: Content) -> some View {
-        content
-            .onChange(of: filePath) { _, newValue in
-                sync(newValue)
-            }
-            .onChange(of: panelVisible) { _, visible in
-                guard visible else { return }
-                sync(filePath)
-            }
-    }
-}
-
-private struct NavigationArrowButton: View {
-    let symbol: String
-    let isEnabled: Bool
-    let label: String
-    let action: () -> Void
-    @State private var hovered = false
+private struct MainContentArea: View {
+    let appState: AppState
+    let projectStore: ProjectStore
+    let worktreeStore: WorktreeStore
+    let sidebarExpanded: Bool
+    let sidebarCollapsedStyle: SidebarCollapsedStyle
+    let sidebarExpandedStyle: SidebarExpandedStyle
+    @Binding var vcsPanelVisible: Bool
+    @Binding var vcsPanelWidth: CGFloat
+    let vcsStates: [WorktreeKey: VCSTabState]
+    @Binding var fileTreePanelVisible: Bool
+    @Binding var fileTreePanelWidth: Double
+    let fileTreeStates: [WorktreeKey: FileTreeState]
+    @Binding var healthPanelVisible: Bool
+    let healthState: ProjectHealthState
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(foregroundColor)
-                .frame(width: 22, height: 22)
-                .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Sidebar()
+                if !SidebarLayout.isHidden(expanded: sidebarExpanded, collapsedStyle: sidebarCollapsedStyle) {
+                    Rectangle().fill(MuxyTheme.border).frame(width: 1)
+                        .accessibilityHidden(true)
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .background(MuxyTheme.bg)
+
+            ZStack {
+                MuxyTheme.bg
+                if let project = activeProject,
+                   appState.workspaceRoot(for: project.id) == nil,
+                   let worktree = resolvedActiveWorktree(for: project)
+                {
+                    EmptyProjectPlaceholder(project: project) {
+                        appState.selectWorktree(projectID: project.id, worktree: worktree)
+                    }
+                } else if projectsWithWorkspaces.isEmpty {
+                    WelcomeView()
+                } else if let project = activeProjectWithWorkspace,
+                          let activeKey = appState.activeWorktreeKey(for: project.id)
+                {
+                    ForEach(mountedWorktreeKeys(for: project), id: \.self) { key in
+                        TerminalArea(
+                            project: project,
+                            worktreeKey: key,
+                            isActiveProject: key == activeKey
+                        )
+                        .opacity(key == activeKey ? 1 : 0)
+                        .allowsHitTesting(key == activeKey)
+                        .zIndex(key == activeKey ? 1 : 0)
+                    }
+                }
+            }
+
+            if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
+                HStack(spacing: 0) {
+                    sidePanelResizeHandle { delta in
+                        vcsPanelWidth = max(200, min(800, vcsPanelWidth - delta))
+                    }
+                    VCSTabView(state: state, focused: false, onFocus: {})
+                        .frame(width: vcsPanelWidth)
+                }
+            } else if fileTreePanelVisible, let treeState = activeFileTreeState {
+                HStack(spacing: 0) {
+                    sidePanelResizeHandle { delta in
+                        let next = fileTreePanelWidth - Double(delta)
+                        fileTreePanelWidth = max(180.0, min(600.0, next))
+                    }
+                    FileTreeView(
+                        state: treeState,
+                        onOpenFile: { filePath in
+                            guard let projectID = appState.activeProjectID else { return }
+                            appState.openFile(filePath, projectID: projectID, preserveFocus: true)
+                        },
+                        onOpenTerminal: { directory in
+                            guard let projectID = appState.activeProjectID else { return }
+                            appState.dispatch(.createTabInDirectory(
+                                projectID: projectID,
+                                areaID: nil,
+                                directory: directory
+                            ))
+                        },
+                        onFileMoved: { oldPath, newPath in
+                            appState.handleFileMoved(from: oldPath, to: newPath)
+                        }
+                    )
+                    .id(treeState.rootPath)
+                    .frame(width: CGFloat(fileTreePanelWidth))
+                }
+            } else if healthPanelVisible, let project = activeProject {
+                HStack(spacing: 0) {
+                    sidePanelResizeHandle { _ in
+                        healthPanelVisible = false
+                    }
+                    ProjectHealthPanel(
+                        state: healthState,
+                        projectPath: activeProjectPath(for: project),
+                        projectName: project.name,
+                        onRefresh: {
+                            healthState.refresh(projectPath: activeProjectPath(for: project))
+                        },
+                        onOpenFile: { relativePath in
+                            healthPanelVisible = false
+                            let basePath = activeProjectPath(for: project)
+                            let fullPath = basePath.hasSuffix("/") ? basePath + relativePath : basePath + "/" + relativePath
+                            guard let projectID = appState.activeProjectID else { return }
+                            appState.openFile(fullPath, projectID: projectID)
+                        }
+                    )
+                    .frame(width: 320)
+                }
+            }
         }
-        .buttonStyle(.plain)
-        .disabled(!isEnabled)
-        .onHover { hovered = $0 }
-        .help(label)
-        .accessibilityLabel(label)
     }
 
-    private var foregroundColor: Color {
-        guard isEnabled else { return MuxyTheme.fgMuted.opacity(0.35) }
-        return hovered ? MuxyTheme.fg : MuxyTheme.fgMuted
+    private var activeProject: Project? {
+        guard let pid = appState.activeProjectID else { return nil }
+        return projectStore.projects.first { $0.id == pid }
+    }
+
+    private var activeProjectWithWorkspace: Project? {
+        guard let project = activeProject,
+              appState.workspaceRoot(for: project.id) != nil
+        else { return nil }
+        return project
+    }
+
+    private var projectsWithWorkspaces: [Project] {
+        projectStore.projects.filter { appState.workspaceRoot(for: $0.id) != nil }
+    }
+
+    private var activeVCSState: VCSTabState? {
+        guard let project = activeProject,
+              let key = appState.activeWorktreeKey(for: project.id)
+        else { return nil }
+        return vcsStates[key]
+    }
+
+    private var activeFileTreeState: FileTreeState? {
+        guard let project = activeProject,
+              let key = appState.activeWorktreeKey(for: project.id)
+        else { return nil }
+        return fileTreeStates[key]
+    }
+
+    private func resolvedActiveWorktree(for project: Project) -> Worktree? {
+        worktreeStore.preferred(for: project.id, matching: appState.activeWorktreeID[project.id])
+    }
+
+    private func mountedWorktreeKeys(for project: Project) -> [WorktreeKey] {
+        appState.workspaceRoots.keys
+            .filter { $0.projectID == project.id }
+            .sorted { $0.worktreeID.uuidString < $1.worktreeID.uuidString }
+    }
+
+    private func sidePanelResizeHandle(onDrag: @escaping (CGFloat) -> Void) -> some View {
+        Rectangle().fill(MuxyTheme.border).frame(width: 1)
+            .accessibilityHidden(true)
+            .overlay {
+                Color.clear
+                    .frame(width: 5)
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 1)
+                            .onChanged { v in onDrag(v.translation.width) }
+                    )
+                    .onHover { on in
+                        if on { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+                    }
+            }
+    }
+
+    private func activeProjectPath(for project: Project) -> String {
+        worktreeStore.preferred(for: project.id, matching: appState.activeWorktreeID[project.id])?.path ?? project.path
     }
 }
 
-private struct MainWindowShortcutInterceptor: NSViewRepresentable {
-    let onShortcut: (ShortcutAction) -> Bool
-    let onCommandShortcut: (CommandShortcut) -> Bool
-    let onMouseBack: () -> Void
-    let onMouseForward: () -> Void
 
-    func makeNSView(context: Context) -> ShortcutInterceptingView {
-        let view = ShortcutInterceptingView()
-        view.onShortcut = onShortcut
-        view.onCommandShortcut = onCommandShortcut
-        view.onMouseBack = onMouseBack
-        view.onMouseForward = onMouseForward
-        return view
-    }
 
-    func updateNSView(_ nsView: ShortcutInterceptingView, context: Context) {
-        nsView.onShortcut = onShortcut
-        nsView.onCommandShortcut = onCommandShortcut
-        nsView.onMouseBack = onMouseBack
-        nsView.onMouseForward = onMouseForward
-    }
-}
-
-private final class ShortcutInterceptingView: NSView {
-    var onShortcut: ((ShortcutAction) -> Bool)?
-    var onCommandShortcut: ((CommandShortcut) -> Bool)?
-    var onMouseBack: (() -> Void)?
-    var onMouseForward: (() -> Void)?
-    private var mouseMonitor: Any?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        if window == nil {
-            removeMouseMonitor()
-        } else {
-            installMouseMonitorIfNeeded()
-        }
-    }
-
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.type == .keyDown,
-              ShortcutContext.isMainWindow(window)
-        else { return super.performKeyEquivalent(with: event) }
-
-        let scopes = ShortcutContext.activeScopes(for: window)
-        let layerWasActive = CommandShortcutStore.shared.isLayerActive
-        if let shortcut = CommandShortcutStore.shared.shortcut(for: event, scopes: scopes) {
-            CommandShortcutStore.shared.deactivateLayer()
-            _ = onCommandShortcut?(shortcut)
-            return true
-        }
-
-        if layerWasActive {
-            CommandShortcutStore.shared.deactivateLayer()
-            return true
-        }
-
-        if CommandShortcutStore.shared.matchesPrefix(event: event, scopes: scopes) {
-            CommandShortcutStore.shared.activateLayer()
-            return true
-        }
-
-        if let action = KeyBindingStore.shared.action(for: event, scopes: scopes) {
-            if onShortcut?(action) == true {
-                return true
-            }
-        }
-
-        return super.performKeyEquivalent(with: event)
-    }
-
-    private func installMouseMonitorIfNeeded() {
-        guard mouseMonitor == nil else { return }
-        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.otherMouseDown, .swipe]) { [weak self] event in
-            guard let self,
-                  let window = self.window,
-                  window.isKeyWindow,
-                  ShortcutContext.isMainWindow(window)
-            else { return event }
-            return self.handleNavigationEvent(event)
-        }
-    }
-
-    private func handleNavigationEvent(_ event: NSEvent) -> NSEvent? {
-        switch event.type {
-        case .otherMouseDown:
-            switch event.buttonNumber {
-            case 3:
-                onMouseBack?()
-                return nil
-            case 4:
-                onMouseForward?()
-                return nil
-            default:
-                return event
-            }
-        case .swipe:
-            if event.deltaX > 0 {
-                onMouseBack?()
-                return nil
-            }
-            if event.deltaX < 0 {
-                onMouseForward?()
-                return nil
-            }
-            return event
-        default:
-            return event
-        }
-    }
-
-    private func removeMouseMonitor() {
-        guard let mouseMonitor else { return }
-        NSEvent.removeMonitor(mouseMonitor)
-        self.mouseMonitor = nil
-    }
-}
-
-private struct WindowOpenReceiver: View {
-    let openWindow: OpenWindowAction
-
-    var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onReceive(NotificationCenter.default.publisher(for: .openVCSWindow)) { _ in
-                openWindow(id: "vcs")
-            }
-            .onReceive(NotificationCenter.default.publisher(for: .openHelpWindow)) { _ in
-                openWindow(id: "help")
-            }
-    }
-}

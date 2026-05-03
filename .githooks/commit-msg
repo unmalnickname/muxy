@@ -1,0 +1,35 @@
+#!/bin/bash
+# Agent Workflow: Commit message hook
+# Enforces conventional commit format with agent tagging.
+
+set -e
+
+COMMIT_MSG_FILE="$1"
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Conventional commit pattern with optional agent tag
+# {type}({scope}): {description}
+# {type}/{agent}: {description}  <- agent-aware variant
+PATTERN="^(feature|fix|refactor|chore|docs|test|perf|ci|build|revert)(\([a-z0-9._-]+\))?: .+"
+
+if ! echo "$COMMIT_MSG" | grep -qE "$PATTERN"; then
+    # Try agent-aware format
+    AGENT_PATTERN="^(feature|fix|refactor|chore|docs|test)/[a-z0-9._-]+: .+"
+    if echo "$COMMIT_MSG" | grep -qE "$AGENT_PATTERN"; then
+        exit 0
+    fi
+
+    echo ""
+    echo "  Invalid commit message format."
+    echo ""
+    echo "  Use conventional commits:"
+    echo "    feat(auth): add login flow"
+    echo "    fix(ui): resolve crash on submit"
+    echo "    refactor(core): extract validation"
+    echo ""
+    echo "  Or agent-aware format:"
+    echo "    feature/opencode: add login flow"
+    echo "    fix/claude-code: resolve crash"
+    echo ""
+    exit 1
+fi

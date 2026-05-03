@@ -1,0 +1,69 @@
+# Agent Workflow: Bug Fix Pipeline
+# Leaner than feature — focused on minimal, targeted fixes.
+
+nodes:
+  - id: diagnose
+    prompt: >
+      Investigate the bug. Understand root cause.
+      
+      IMPORTANT: If Reversa specs exist in _reversa_sdd/, check them
+      for business rules and module boundaries that might be affected.
+      
+      Output:
+      - Symptoms
+      - Root cause (file + line)
+      - Fix strategy (minimal change)
+      - Tests needed to prevent regression
+
+  - id: sentrux-baseline
+    depends_on: [diagnose]
+    bash: "sentrux gate --save ."
+
+  - id: fix
+    depends_on: [sentrux-baseline]
+    prompt: >
+      Implement the fix described in node:diagnose.
+      Make the MINIMAL change needed.
+      Add regression tests.
+      Verify existing tests still pass.
+
+  - id: quality-check
+    depends_on: [fix]
+    bash: >
+      sentrux gate . &&
+      echo "Quality delta: before → after"
+
+  - id: ui-test
+    depends_on: [quality-check]
+    bash: |
+      if ls tests/test_ui_structure.py 2>/dev/null; then
+        python3 -m pytest tests/test_ui_structure.py -v --tb=short -q 2>/dev/null
+      fi
+
+  - id: verify
+    depends_on: [ui-test, quality-check]
+    bash: |
+      if [ -f "package.json" ]; then bun run validate
+      elif [ -f "Cargo.toml" ]; then cargo test
+      elif [ -f "pubspec.yaml" ]; then flutter test
+      elif [ -f "pyproject.toml" ]; then pytest
+      fi
+
+  - id: approval
+    depends_on: [verify]
+    prompt: >
+      Present the fix for human review:
+      - Root cause
+      - Change (before/after)
+      - Test results
+      - Quality impact
+      Wait for approval before proceeding.
+    loop:
+      until: APPROVED
+      interactive: true
+
+  - id: pr
+    depends_on: [approval]
+    prompt: >
+      Push branch, create PR targeting develop,
+      attach diagnosis and test results.

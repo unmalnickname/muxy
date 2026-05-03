@@ -1,0 +1,56 @@
+# Agent Workflow: Cross-Agent Code Review
+# One agent reviews another agent's PR before human review.
+
+nodes:
+  - id: fetch-pr
+    prompt: >
+      Fetch the PR diff and understand the changes.
+      
+      IMPORTANT: If Reversa specs exist in _reversa_sdd/, cross-reference
+      the changes against documented business rules and module boundaries.
+      Flag any changes that violate the spec.
+      
+      Identify:
+      - Files changed (with stats)
+      - PR description/context
+      - Related issues
+
+  - id: static-analysis
+    depends_on: [fetch-pr]
+    prompt: >
+      Review the code WITHOUT running it. Focus on:
+      - Correctness: logic errors, off-by-one, race conditions
+      - Security: injection, XSS, auth bypass, secret exposure
+      - Patterns: does it match project conventions?
+      - Edge cases: null handling, error paths, boundary conditions
+
+  - id: sentrux-compare
+    depends_on: [fetch-pr]
+    bash: >
+      sentrux check . --json | jq '{score: .score, bottlenecks: .bottlenecks}'
+
+  - id: synthesize
+    depends_on: [static-analysis, sentrux-compare]
+    prompt: >
+      Combine findings from static analysis and sentrux.
+      Produce a structured review:
+      - Score (1-10)
+      - Critical issues (must fix)
+      - Warnings (should fix)
+      - Suggestions (nice to have)
+      - Quality metrics
+
+  - id: auto-fix
+    depends_on: [synthesize]
+    loop:
+      prompt: >
+        Fix any critical issues found in the review.
+        Verify each fix doesn't break existing tests.
+      until: NO_CRITICAL_ISSUES
+      fresh_context: true
+
+  - id: final-report
+    depends_on: [auto-fix]
+    prompt: >
+      Output final review report marked for human reviewer.
+      List what was auto-fixed and what needs human judgment.

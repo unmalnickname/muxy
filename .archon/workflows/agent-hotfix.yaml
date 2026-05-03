@@ -1,0 +1,91 @@
+# Agent Workflow: Hotfix Pipeline
+# Fast-track fix that goes directly to master (bypasses develop).
+# MUST be backported to develop after merge.
+
+nodes:
+  - id: classify
+    prompt: >
+      This is a HOTFIX — it goes DIRECTLY to master.
+      Confirm this is appropriate:
+      - Is this a production outage / security issue?
+      - Can it NOT wait for the normal release cycle?
+      - Is the fix scope MINIMAL?
+      If not, cancel and use agent-fix instead.
+
+  - id: diagnose
+    depends_on: [classify]
+    prompt: >
+      Diagnose the production issue:
+      1. Impact assessment (who is affected, severity)
+      2. Root cause (file + line)
+      3. Fix strategy (absolute minimal change)
+      4. Rollback plan if fix fails
+      
+      If Reversa specs exist in _reversa_sdd/, check them for
+      architectural constraints that might affect the fix.
+
+  - id: sentrux-baseline
+    depends_on: [diagnose]
+    bash: "sentrux gate --save . --scope hotfix"
+
+  - id: implement
+    depends_on: [sentrux-baseline]
+    prompt: >
+      Implement the MINIMAL fix from node:diagnose.
+      Rules:
+      - Change ONLY the files needed for the fix
+      - NO refactoring, NO cleanup, NO unrelated changes
+      - Add regression test for the bug
+      - Run tests after every change
+
+  - id: verify
+    depends_on: [implement]
+    bash: |
+      if [ -f "package.json" ]; then bun run test
+      elif [ -f "Cargo.toml" ]; then cargo test
+      elif [ -f "pubspec.yaml" ]; then flutter test
+      elif [ -f "pyproject.toml" ]; then pytest
+      fi
+
+  - id: ui-test
+    depends_on: [verify]
+    bash: |
+      if ls tests/test_ui_structure.py 2>/dev/null; then
+        python3 -m pytest tests/test_ui_structure.py -v --tb=short -q 2>/dev/null
+      fi
+
+  - id: security-scan
+    depends_on: [ui-test]
+    prompt: >
+      Review the fix for security implications:
+      - Does it open any new attack vectors?
+      - Are there input validation concerns?
+      - Is error handling safe (no info leakage)?
+      - Are any dependencies introduced?
+
+  - id: sentrux-gate
+    depends_on: [security-scan]
+    bash: "sentrux gate . --scope hotfix"
+
+  - id: approval
+    depends_on: [sentrux-gate]
+    loop:
+      prompt: >
+        HOTFIX approval needed:
+        - Impact: {impact}
+        - Root cause: {root_cause}
+        - Fix: {files_changed}
+        - Tests: {test_results}
+        - Rollback: {rollback_plan}
+        Approve to deploy to production.
+      until: APPROVED
+      interactive: true
+
+  - id: deploy-to-master
+    depends_on: [approval]
+    prompt: >
+      1. Push branch to origin
+      2. Create PR targeting master with label "hotfix"
+      3. Merge PR (squash merge) — deploy to production
+      4. AFTER merge, create a backport PR from master to develop
+      5. Tag branch as resolved: git tag hotfix-{date}

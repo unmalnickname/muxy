@@ -1,0 +1,110 @@
+# Agent Workflow: Feature Development Pipeline
+# Run by any AI agent (opencode, claude-code, hermes, pi)
+# Handles: feature idea → review → merge
+
+nodes:
+  - id: plan
+    prompt: >
+      Explore the codebase and understand the feature request.
+      
+      IMPORTANT: If Reversa specs exist in _reversa_sdd/, read them first
+      for architectural context, business rules, and module boundaries.
+      These specs contain 🟢 CONFIRMED facts and 🟡 INFERRED patterns
+      extracted from the codebase by automated analysis.
+      
+      Create a detailed implementation plan with:
+      1. Files to modify / create
+      2. Dependencies needed
+      3. Test strategy
+      4. Risk assessment (what could break)
+      Output as structured markdown.
+
+  - id: sentrux-baseline
+    depends_on: [plan]
+    bash: "sentrux gate --save ."
+
+  - id: implement
+    depends_on: [sentrux-baseline]
+    loop:
+      prompt: >
+        Read the plan from node:plan.
+        Implement the next task.
+        After each change, verify with project tools (lint, compile, test).
+        Only move to the next task when current task is verified.
+      until: ALL_TASKS_COMPLETE
+      fresh_context: true
+
+  - id: quality-gate
+    depends_on: [implement]
+    bash: >
+      sentrux gate . &&
+      echo "Quality: $(sentrux check . --json | jq '.score')"
+
+  - id: graphify-update
+    depends_on: [implement]
+    bash: "graphify scan . --quiet"
+
+  - id: ui-test
+    depends_on: [quality-gate]
+    bash: |
+      if ls tests/test_ui_structure.py 2>/dev/null; then
+        if [ -f "package.json" ]; then npx playwright test --config playwright.ct.config.ts 2>/dev/null
+        elif [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+          python3 -m pytest tests/test_ui_structure.py -v --tb=short -q 2>/dev/null
+        fi
+        echo "UI structure tests complete"
+      fi
+
+  - id: self-review
+    depends_on: [quality-gate, graphify-update, ui-test]
+    prompt: >
+      Review ALL changes made in this feature branch:
+      1. Does the implementation match the plan?
+      2. Are there any regressions or edge cases missed?
+      3. Is the code consistent with existing patterns?
+      4. Are tests adequate?
+      Fix any issues found.
+
+  - id: run-tests
+    depends_on: [self-review]
+    bash: |
+      if [ -f "package.json" ]; then bun run test
+      elif [ -f "Cargo.toml" ]; then cargo test
+      elif [ -f "pubspec.yaml" ]; then flutter test
+      elif [ -f "pyproject.toml" ]; then pytest
+      else echo "No test runner configured"
+      fi
+
+  - id: cross-agent-review
+    depends_on: [run-tests]
+    prompt: >
+      You are a DIFFERENT AI agent reviewing another agent's work.
+      Be critical. Look for:
+      - Security vulnerabilities
+      - Performance issues
+      - Architectural misalignment
+      - Missing error handling
+      - Inconsistent naming or patterns
+      Score the implementation 1-10 and explain any < 7.
+
+  - id: approval
+    depends_on: [cross-agent-review]
+    loop:
+      prompt: >
+        Present the changes for human review.
+        Include: summary, files changed, test results, quality score.
+        Wait for approval.
+      until: APPROVED
+      interactive: true
+
+  - id: create-merged-pr
+    depends_on: [approval]
+    prompt: >
+      1. Push the current branch to origin
+      2. Create a PR targeting develop with:
+         - Summary of changes
+         - Agent attribution
+         - Quality gate results
+         - Review findings
+      3. Merge the PR (squash merge)
+      4. Delete the remote branch

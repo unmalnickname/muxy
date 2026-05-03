@@ -1,0 +1,57 @@
+# Agent Workflow: Reversa Codebase Analysis
+# Runs Reversa's agent team to analyze the codebase and generate
+# executable specifications. Run AFTER significant code changes
+# or when starting work on an unfamiliar part of the codebase.
+# Specs are saved to _reversa_sdd/ and referenced by all other workflows.
+
+nodes:
+  - id: check-installed
+    prompt: >
+      Check if Reversa is installed in this project.
+      Look for:
+      - .reversa/ directory
+      - .agents/skills/ directory with reversa skills
+      - AGENTS.md or CLAUDE.md with reversa activation instructions
+      If not installed, tell the user to run: npx reversa install
+
+  - id: run-analysis
+    depends_on: [check-installed]
+    prompt: >
+      Run Reversa analysis. Activate it by typing /reversa in the conversation.
+      
+      The analysis pipeline is:
+      1. Scout — maps folder structure, languages, dependencies, entry points
+      2. Archaeologist — deep module-by-module analysis
+      3. Detective — extracts business rules, state machines, permissions
+      4. Architect — synthesizes C4 diagrams, ERDs, integration maps
+      5. Writer — generates specs as operational contracts
+      
+      Wait for each phase to complete before proceeding to the next.
+      Progress is saved in .reversa/state.json — if interrupted,
+      resume by activating Reversa again.
+
+  - id: verify-specs
+    depends_on: [run-analysis]
+    bash: |
+      if [ -d "_reversa_sdd" ]; then
+        echo "=== Specs Generated ==="
+        find _reversa_sdd -name "*.md" | sort
+        echo ""
+        echo "Total spec files: $(find _reversa_sdd -name '*.md' | wc -l)"
+        echo "Size: $(du -sh _reversa_sdd | cut -f1)"
+      else
+        echo "No specs generated yet. Check .reversa/state.json for progress."
+      fi
+
+  - id: summary
+    depends_on: [verify-specs]
+    prompt: >
+      Summarize what Reversa discovered about the codebase:
+      - Languages and frameworks detected
+      - Number of modules analyzed
+      - Key architectural patterns discovered
+      - Business rules extracted
+      - Confidence levels (CONFIRMED / INFERRED / GAP)
+      - Any critical gaps the user should validate
+      
+      Output a concise summary the user can reference when planning features.

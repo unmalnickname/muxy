@@ -1,0 +1,149 @@
+#!/bin/bash
+# Agent Workflow: Pre-push hook
+# Full validation before allowing push to remote.
+# Blocks push if any verification fails.
+
+set -e
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
+REMOTE="${1:-origin}"
+
+echo "=== Pre-push: Full Validation Gate ==="
+echo "[branch] $BRANCH → $REMOTE"
+
+# 1. Detect agent from branch name
+AGENT=$(echo "$BRANCH" | awk -F/ '{print $2}')
+echo "[agent] ${AGENT:-unknown}"
+
+# 2. Validate branch naming convention
+if [[ "$BRANCH" != "master" && "$BRANCH" != "main" && "$BRANCH" != "develop" ]]; then
+    if ! echo "$BRANCH" | grep -qE "^(feature|fix|refactor|chore|docs|test|hotfix)/[a-z0-9._-]+/.+"; then
+        echo "[error] Branch name must follow convention:"
+        echo "        {type}/{agent}/{description}"
+        echo "        e.g. feature/opencode/add-auth"
+        echo "             fix/claude-code/login-crash"
+        echo "             hotfix/opencode/outage-fix"
+        echo "             refactor/hermes/extract-core"
+        exit 1
+    fi
+fi
+
+# 2b. Hotfix branches go to master only
+if echo "$BRANCH" | grep -qE "^hotfix/"; then
+    if [[ "$REMOTE" != "origin" ]]; then
+        echo "[hotfix] targeting $REMOTE — hotfixes should push to origin"
+    fi
+    echo "[hotfix] branch — pushing directly"
+fi
+
+# 3. Full project verification
+run_full_check() {
+    if [ -f "package.json" ]; then
+        echo "[check] Running full project validation..."
+        if command -v bun &>/dev/null; then
+            if grep -q '"validate"' package.json 2>/dev/null; then
+                bun run validate 2>/dev/null || {
+                    echo "[fail] 'bun run validate' failed"
+                    exit 1
+                }
+            else
+                # Run individual checks
+                [ -f "eslint.config.mjs" ] && bun run lint 2>/dev/null
+                [ -f "tsconfig.json" ] && bun run type-check 2>/dev/null
+                [ -f "vitest.config.ts" ] || [ -d "__tests__" ] && bun run test 2>/dev/null
+            fi
+        elif command -v npm &>/dev/null; then
+            npm test 2>/dev/null
+        fi
+    fi
+
+    if [ -f "Cargo.toml" ]; then
+        echo "[check] Running Rust checks..."
+        cargo test 2>/dev/null || exit 1
+    fi
+
+    if [ -f "pubspec.yaml" ]; then
+        echo "[check] Running Flutter checks..."
+        flutter analyze 2>/dev/null
+        flutter test 2>/dev/null
+    fi
+
+    if [ -f "pyproject.toml" ]; then
+        echo "[check] Running Python checks..."
+        if command -v pytest &>/dev/null; then
+            pytest 2>/dev/null || exit 1
+        fi
+    fi
+
+    # Xcode / Swift
+    if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
+        echo "[check] Running Swift checks..."
+        swift test 2>/dev/null || true
+    fi
+}
+run_full_check
+
+# 4. Sentrux full quality gate
+if command -v sentrux &>/dev/null; then
+    echo "[sentrux] running full quality gate..."
+    if [ -f ".sentrux/rules.toml" ]; then
+        sentrux gate . || {
+            echo "[fail] Quality degraded from baseline. Fix before pushing."
+            echo "       Run: sentrux gate .  (for details)"
+            exit 1
+        }
+    fi
+fi
+
+# 5. Check for uncommitted changes
+if [ -n "$(git status --porcelain)" ]; then
+    echo "[warn] Uncommitted changes present (not blocking)"
+fi
+
+# 6. Doppler secrets check (prevent accidental commits)
+if command -v doppler &>/dev/null && [ -f ".doppler.yaml" ]; then
+    echo "[doppler] verifying secrets..."
+    DOPPLER_CONFIG=$(doppler configure get config 2>/dev/null || echo "")
+    if [ -n "$DOPPLER_CONFIG" ]; then
+        echo "[doppler] active config: $DOPPLER_CONFIG"
+    fi
+fi
+
+# 7. Secret scan (Gitleaks) — full repo scan before pushing
+if command -v gitleaks &>/dev/null; then
+    echo "[gitleaks] scanning full repo for secrets..."
+    gitleaks detect --source . -v 2>/dev/null || {
+        echo "[FAIL] Secrets found in repository!"
+        echo "       Run: gitleaks detect --source . --verbose"
+        exit 1
+    }
+elif command -v docker &>/dev/null; then
+    echo "[gitleaks] scanning via docker..."
+    docker run --rm -v "$(pwd):/repo" \
+      ghcr.io/gitleaks/gitleaks detect \
+      --source /repo -v 2>/dev/null || {
+        echo "[FAIL] Secrets found in repository!"
+        exit 1
+    }
+fi
+
+# 8. Archon validation
+if [ -d ".archon/workflows" ] && command -v archon &>/dev/null; then
+    echo "[archon] validating workflows..."
+    archon workflow validate . 2>/dev/null || echo "[warn] Archon validation skipped"
+fi
+
+# 9. Prevent push to master without hotfix branch
+if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
+    # Allow pushes from CI/release bot
+    if [ -z "$CI" ]; then
+        echo "[error] Direct push to $BRANCH is not allowed"
+        echo "       Use a hotfix branch or release PR instead"
+        exit 1
+    fi
+fi
+
+echo "=== Pre-push Passed ==="

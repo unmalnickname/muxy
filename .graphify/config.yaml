@@ -1,0 +1,70 @@
+# Agent Workflow: Graphify Configuration
+# Knowledge graph tracks code structure evolution across agent sessions.
+
+project:
+  name: "muxy"
+  root: "."
+
+scan:
+  # File patterns to include
+  include:
+    - "**/*.ts"
+    - "**/*.tsx"
+    - "**/*.js"
+    - "**/*.dart"
+    - "**/*.swift"
+    - "**/*.kt"
+    - "**/*.java"
+    - "**/*.py"
+    - "**/*.rs"
+    - "**/*.go"
+    - "**/*.yaml"
+    - "**/*.yml"
+    - "**/Cargo.toml"
+    - "**/pubspec.yaml"
+    - "**/Package.swift"
+    - "**/build.gradle*"
+    - "**/pom.xml"
+  # File patterns to exclude
+  exclude:
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/build/**"
+    - "**/dist/**"
+    - "**/.dart_tool/**"
+    - "**/.tox/**"
+    - "**/__pycache__/**"
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "**/*.generated.*"
+
+knowledge_graph:
+  # Track relationships between modules
+  relationships:
+    - type: "imports"
+      enabled: true
+    - type: "depends_on"
+      enabled: true
+    - type: "extends"
+      enabled: true
+    - type: "implements"
+      enabled: true
+
+  # Cluster into communities for navigation
+  communities:
+    enabled: true
+    min_cluster_size: 3
+
+  # Track which agent modified what
+  agent_attribution:
+    enabled: true
+    source: "branch_name"  # Extracts agent from branch name
+
+output:
+  format: "html"
+  path: ".graphify/output/"
+  auto_open: false
+
+hooks:
+  post_commit: true      # Auto-update on commit
+  post_merge: true       # Refresh after merge

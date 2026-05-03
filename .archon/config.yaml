@@ -1,0 +1,62 @@
+# Agent Workflow: Archon configuration
+# Controls which agents can be used, default settings, and MCP server discovery.
+
+assistants:
+  claude:
+    model: sonnet
+  codex:
+    model: gpt-5.3-codex
+  pi:
+    model: anthropic/claude-sonnet-4-5
+
+defaults:
+  loadDefaultCommands: true
+  loadDefaultWorkflows: true
+
+# MCP servers — agents discover these automatically
+# Both servers are in mcp-servers/ relative to this config
+mcp:
+  servers:
+    - id: graphify
+      name: Graphify Knowledge Graph
+      command: python3
+      args:
+        - "{{ARCHON_PROJECT_ROOT}}/mcp-servers/graphify-mcp.py"
+      description: "Query codebase knowledge graph, scan dependencies, check agent attribution"
+      alwaysAllow: ["graphify_scan", "graphify_query"]
+
+    - id: archon
+      name: Archon Workflow Engine
+      command: python3
+      args:
+        - "{{ARCHON_PROJECT_ROOT}}/mcp-servers/archon-mcp.py"
+      description: "List and run Archon workflows, check worktree status"
+      alwaysAllow: ["archon_list_workflows", "archon_workflow_status"]
+
+# Quality gates enforced by pre-push
+quality:
+  sentrux:
+    enabled: true
+    failOnDegrade: true
+  graphify:
+    enabled: true
+    autoUpdate: true
+
+# Branch naming convention
+git:
+  branchFormat: "{type}/{agent}/{description}"
+  types:
+    - feature
+    - fix
+    - refactor
+    - chore
+    - docs
+    - test
+    - hotfix
+  agents:
+    - opencode
+    - claude-code
+    - hermes
+    - pi
+  baseBranch: develop
+  releaseBranch: master

@@ -1,0 +1,60 @@
+# Agent Workflow: Chore / Maintenance Pipeline
+# Dependency updates, tooling, CI config changes, docs.
+
+nodes:
+  - id: scope
+    prompt: >
+      Identify the maintenance task scope:
+      - Dependency updates (list what and why)
+      - Tooling/config changes (describe)
+      - Documentation updates (what sections)
+      - CI pipeline changes (what jobs)
+      Output a clear task description.
+
+  - id: sentrux-baseline
+    depends_on: [scope]
+    bash: "sentrux gate --save ."
+
+  - id: execute
+    depends_on: [sentrux-baseline]
+    prompt: >
+      Execute the maintenance task from node:scope.
+      Rules:
+      - One change per commit
+      - Verify after each step
+      - If updating deps: check for breaking changes
+      - If updating CI: verify YAML syntax with actionlint
+
+  - id: verify
+    depends_on: [execute]
+    bash: |
+      if [ -f "package.json" ]; then bun run validate
+      elif [ -f "Cargo.toml" ]; then cargo test && cargo build
+      elif [ -f "pubspec.yaml" ]; then flutter analyze
+      elif [ -f "pyproject.toml" ]; then uv run pytest
+      fi
+
+  - id: ui-test
+    depends_on: [verify]
+    bash: |
+      if ls tests/test_ui_structure.py 2>/dev/null; then
+        python3 -m pytest tests/test_ui_structure.py -v --tb=short -q 2>/dev/null
+      fi
+
+  - id: review
+    depends_on: [ui-test]
+    prompt: >
+      Review the maintenance changes:
+      - Does everything still work?
+      - Are there side effects?
+      - Is documentation updated?
+      If CI changed, validate the workflow syntax.
+
+  - id: pr
+    depends_on: [review]
+    prompt: >
+      Create a PR with:
+      - Clear scope description
+      - What changed and why
+      - Verification results
+      Tag with "chore" label.

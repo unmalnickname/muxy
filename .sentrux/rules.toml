@@ -1,0 +1,92 @@
+# Agent Workflow: Sentrux Quality Rules
+# Architectural governance for AI-generated code.
+# Enforced by pre-push hook and CI.
+
+[constraints]
+# Structural quality floor — fail if score drops below threshold
+min_quality_score = 6000
+
+# Maximum allowed dependency cycles (0 = zero tolerance)
+max_cycles = 0
+
+# Maximum allowed coupling (A=low, B=moderate, C=high)
+max_coupling = "B"
+
+# Maximum cyclomatic complexity per function
+max_cc = 25
+
+# Fail if any file exceeds this % of total dependencies
+max_god_file_percent = 20
+
+# Enforce modularity boundaries
+no_god_files = true
+
+# [layers] — define architectural layers (lower order = foundation)
+[[layers]]
+name = "core"
+paths = ["src/core/*", "lib/core/*", "packages/core/*"]
+order = 0
+
+[[layers]]
+name = "domain"
+paths = ["src/domain/*", "lib/domain/*"]
+order = 1
+
+[[layers]]
+name = "application"
+paths = ["src/app/*", "lib/app/*", "packages/app/*"]
+order = 2
+
+[[layers]]
+name = "ui"
+paths = ["src/ui/*", "lib/ui/*", "packages/web/*", "packages/ui/*"]
+order = 3
+
+[[layers]]
+name = "infrastructure"
+paths = ["src/infra/*", "lib/infra/*", "deploy/*"]
+order = 4
+
+# Language-specific overrides
+[[layers]]
+name = "android"
+paths = ["app/src/**/*.kt", "app/src/**/*.java"]
+order = 2
+
+[[layers]]
+name = "ios"
+paths = ["ios/**/*.swift", "macos/**/*.swift"]
+order = 2
+
+[[layers]]
+name = "flutter"
+paths = ["lib/**/*.dart"]
+order = 2
+
+# [boundaries] — enforce dependency direction: lower layers must not depend on higher layers
+[[boundaries]]
+from = "src/app/*"
+to = "src/core/internal/*"
+reason = "App layer must not depend on core internals"
+
+[[boundaries]]
+from = "src/ui/*"
+to = "src/infra/*"
+reason = "UI must not directly depend on infrastructure"
+
+[[boundaries]]
+from = "lib/app/*"
+to = "lib/core/internal/*"
+reason = "Flutter app must not depend on core internals"
+
+[metrics]
+# Customize metric weights (must sum to 100)
+weight_modularity = 30
+weight_acyclicity = 25
+weight_depth = 20
+weight_equality = 15
+weight_redundancy = 10
+
+[ci]
+fail_on_degradation = true
+baseline_required = true
