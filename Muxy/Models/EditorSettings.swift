@@ -39,8 +39,10 @@ final class EditorSettings {
     var markdownPreviewFontFamily: String = EditorSettings.defaultMarkdownPreviewFontFamily { didSet { save() } }
     var markdownPreviewFontScale: CGFloat = EditorSettings.defaultMarkdownPreviewFontScale { didSet { save() } }
 
-    @ObservationIgnored private let store: CodableFileStore<Snapshot>
-    @ObservationIgnored private var isBatchLoading = false
+    @ObservationIgnored
+    private let store: CodableFileStore<Snapshot>
+    @ObservationIgnored
+    private var isBatchLoading = false
 
     var resolvedFont: NSFont {
         if let font = NSFont(name: fontFamily, size: fontSize) {

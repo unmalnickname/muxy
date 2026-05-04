@@ -15,8 +15,10 @@ struct TabAreaView: View {
     let onForceCloseTab: (UUID) -> Void
     let onSplit: (SplitDirection) -> Void
     let onDropAction: (TabDragCoordinator.DropResult) -> Void
-    @Environment(TabDragCoordinator.self) private var dragCoordinator
-    @Environment(AppState.self) private var appState
+    @Environment(TabDragCoordinator.self)
+    private var dragCoordinator
+    @Environment(AppState.self)
+    private var appState
 
     private func closeTabs(_ tabIDs: [UUID]) {
         for tabID in tabIDs {

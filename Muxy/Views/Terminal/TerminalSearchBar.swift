@@ -1,12 +1,14 @@
 import SwiftUI
 
 struct TerminalSearchBar: View {
-    @Bindable var searchState: TerminalSearchState
+    @Bindable
+    var searchState: TerminalSearchState
     let onNavigateNext: () -> Void
     let onNavigatePrevious: () -> Void
     let onClose: () -> Void
 
-    @FocusState private var isFieldFocused: Bool
+    @FocusState
+    private var isFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {

@@ -1,12 +1,18 @@
 import SwiftUI
 
 struct MobileSettingsView: View {
-    @Bindable private var service = MobileServerService.shared
-    @Bindable private var devices = ApprovedDevicesStore.shared
-    @State private var deviceToRevoke: ApprovedDevice?
-    @State private var portText: String = ""
-    @State private var portValidationError: String?
-    @State private var showFreePortConfirmation = false
+    @Bindable
+    private var service = MobileServerService.shared
+    @Bindable
+    private var devices = ApprovedDevicesStore.shared
+    @State
+    private var deviceToRevoke: ApprovedDevice?
+    @State
+    private var portText: String = ""
+    @State
+    private var portValidationError: String?
+    @State
+    private var showFreePortConfirmation = false
 
     private var enabledBinding: Binding<Bool> {
         Binding(

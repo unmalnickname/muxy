@@ -2,9 +2,12 @@ import AppKit
 import SwiftUI
 
 struct NotificationSettingsView: View {
-    @AppStorage("muxy.notifications.sound") private var sound = NotificationSound.funk.rawValue
-    @AppStorage("muxy.notifications.toastEnabled") private var toastEnabled = true
-    @AppStorage("muxy.notifications.toastPosition") private var toastPosition = ToastPosition.topCenter.rawValue
+    @AppStorage("muxy.notifications.sound")
+    private var sound = NotificationSound.funk.rawValue
+    @AppStorage("muxy.notifications.toastEnabled")
+    private var toastEnabled = true
+    @AppStorage("muxy.notifications.toastPosition")
+    private var toastPosition = ToastPosition.topCenter.rawValue
 
     var body: some View {
         SettingsContainer {
@@ -47,8 +50,10 @@ struct NotificationSettingsView: View {
 
 private struct ProviderToggleRow: View {
     let provider: AIProviderIntegration
-    @State private var enabled: Bool
-    @State private var refreshed = false
+    @State
+    private var enabled: Bool
+    @State
+    private var refreshed = false
 
     init(provider: AIProviderIntegration) {
         self.provider = provider

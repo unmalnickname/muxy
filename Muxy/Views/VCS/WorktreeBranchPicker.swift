@@ -13,11 +13,15 @@ struct WorktreeBranchPicker: View {
     let onDeleteBranch: (String) -> Void
     let onRequestCreateWorktree: () -> Void
 
-    @Environment(AppState.self) private var appState
-    @Environment(WorktreeStore.self) private var worktreeStore
+    @Environment(AppState.self)
+    private var appState
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
 
-    @State private var showPopover = false
-    @State private var segment: Segment = .worktrees
+    @State
+    private var showPopover = false
+    @State
+    private var segment: Segment = .worktrees
 
     enum Segment: String, CaseIterable, Identifiable {
         case worktrees

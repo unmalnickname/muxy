@@ -26,13 +26,20 @@ enum SidebarLayout {
 }
 
 struct Sidebar: View {
-    @Environment(AppState.self) private var appState
-    @Environment(ProjectStore.self) private var projectStore
-    @Environment(WorktreeStore.self) private var worktreeStore
-    @State private var dragState = ProjectDragState()
-    @State private var expanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
-    @AppStorage(SidebarCollapsedStyle.storageKey) private var collapsedStyleRaw = SidebarCollapsedStyle.defaultValue.rawValue
-    @AppStorage(SidebarExpandedStyle.storageKey) private var expandedStyleRaw = SidebarExpandedStyle.defaultValue.rawValue
+    @Environment(AppState.self)
+    private var appState
+    @Environment(ProjectStore.self)
+    private var projectStore
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
+    @State
+    private var dragState = ProjectDragState()
+    @State
+    private var expanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
+    @AppStorage(SidebarCollapsedStyle.storageKey)
+    private var collapsedStyleRaw = SidebarCollapsedStyle.defaultValue.rawValue
+    @AppStorage(SidebarExpandedStyle.storageKey)
+    private var expandedStyleRaw = SidebarExpandedStyle.defaultValue.rawValue
 
     private var collapsedStyle: SidebarCollapsedStyle {
         SidebarCollapsedStyle(rawValue: collapsedStyleRaw) ?? .defaultValue

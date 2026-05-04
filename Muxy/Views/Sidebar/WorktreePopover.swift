@@ -8,10 +8,13 @@ struct WorktreePopover: View {
     let onRequestCreate: () -> Void
     var fixedSize: Bool = true
 
-    @Environment(AppState.self) private var appState
-    @Environment(WorktreeStore.self) private var worktreeStore
+    @Environment(AppState.self)
+    private var appState
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
 
-    @State private var isRefreshing = false
+    @State
+    private var isRefreshing = false
 
     private var worktrees: [Worktree] {
         worktreeStore.list(for: project.id)
@@ -146,10 +149,14 @@ private struct WorktreePopoverRow: View {
     let onRename: (String) -> Void
     let onRemove: (() -> Void)?
 
-    @State private var hovered = false
-    @State private var isRenaming = false
-    @State private var renameText = ""
-    @FocusState private var renameFieldFocused: Bool
+    @State
+    private var hovered = false
+    @State
+    private var isRenaming = false
+    @State
+    private var renameText = ""
+    @FocusState
+    private var renameFieldFocused: Bool
 
     private var displayName: String {
         if worktree.isPrimary, worktree.name.isEmpty { return "main" }

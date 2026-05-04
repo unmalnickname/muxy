@@ -2,40 +2,68 @@ import AppKit
 import SwiftUI
 
 enum MuxyTheme {
-    @MainActor static var bg: Color { snapshot.bg }
-    @MainActor static var nsBg: NSColor { snapshot.nsBg }
-    @MainActor static var fg: Color { snapshot.fg }
-    @MainActor static var fgMuted: Color { snapshot.fgMuted }
-    @MainActor static var fgDim: Color { snapshot.fgDim }
-    @MainActor static var surface: Color { snapshot.surface }
-    @MainActor static var border: Color { snapshot.border }
-    @MainActor static var hover: Color { snapshot.hover }
+    @MainActor
+    static var bg: Color { snapshot.bg }
+    @MainActor
+    static var nsBg: NSColor { snapshot.nsBg }
+    @MainActor
+    static var fg: Color { snapshot.fg }
+    @MainActor
+    static var fgMuted: Color { snapshot.fgMuted }
+    @MainActor
+    static var fgDim: Color { snapshot.fgDim }
+    @MainActor
+    static var surface: Color { snapshot.surface }
+    @MainActor
+    static var border: Color { snapshot.border }
+    @MainActor
+    static var hover: Color { snapshot.hover }
 
-    @MainActor static var accent: Color { snapshot.accent }
-    @MainActor static var accentSoft: Color { snapshot.accentSoft }
-    @MainActor static var warning: Color { snapshot.warning }
+    @MainActor
+    static var accent: Color { snapshot.accent }
+    @MainActor
+    static var accentSoft: Color { snapshot.accentSoft }
+    @MainActor
+    static var warning: Color { snapshot.warning }
 
-    @MainActor static var diffAddFg: Color { snapshot.diffAddFg }
-    @MainActor static var diffRemoveFg: Color { snapshot.diffRemoveFg }
-    @MainActor static var diffHunkFg: Color { snapshot.diffHunkFg }
-    @MainActor static var diffAddBg: Color { snapshot.diffAddBg }
-    @MainActor static var diffRemoveBg: Color { snapshot.diffRemoveBg }
-    @MainActor static var diffHunkBg: Color { snapshot.diffHunkBg }
+    @MainActor
+    static var diffAddFg: Color { snapshot.diffAddFg }
+    @MainActor
+    static var diffRemoveFg: Color { snapshot.diffRemoveFg }
+    @MainActor
+    static var diffHunkFg: Color { snapshot.diffHunkFg }
+    @MainActor
+    static var diffAddBg: Color { snapshot.diffAddBg }
+    @MainActor
+    static var diffRemoveBg: Color { snapshot.diffRemoveBg }
+    @MainActor
+    static var diffHunkBg: Color { snapshot.diffHunkBg }
 
-    @MainActor static var nsDiffAdd: NSColor { snapshot.nsDiffAdd }
-    @MainActor static var nsDiffRemove: NSColor { snapshot.nsDiffRemove }
-    @MainActor static var nsDiffHunk: NSColor { snapshot.nsDiffHunk }
-    @MainActor static var nsDiffString: NSColor { snapshot.nsDiffString }
-    @MainActor static var nsDiffNumber: NSColor { snapshot.nsDiffNumber }
-    @MainActor static var nsDiffComment: NSColor { snapshot.nsDiffComment }
+    @MainActor
+    static var nsDiffAdd: NSColor { snapshot.nsDiffAdd }
+    @MainActor
+    static var nsDiffRemove: NSColor { snapshot.nsDiffRemove }
+    @MainActor
+    static var nsDiffHunk: NSColor { snapshot.nsDiffHunk }
+    @MainActor
+    static var nsDiffString: NSColor { snapshot.nsDiffString }
+    @MainActor
+    static var nsDiffNumber: NSColor { snapshot.nsDiffNumber }
+    @MainActor
+    static var nsDiffComment: NSColor { snapshot.nsDiffComment }
 
-    @MainActor static var colorScheme: ColorScheme { snapshot.colorScheme }
+    @MainActor
+    static var colorScheme: ColorScheme { snapshot.colorScheme }
 
-    @MainActor private static var cachedVersion: Int = -1
-    @MainActor private static var cachedAppearance: ThemeAppearance = .light
-    @MainActor private static var cachedSnapshot: Snapshot?
+    @MainActor
+    private static var cachedVersion: Int = -1
+    @MainActor
+    private static var cachedAppearance: ThemeAppearance = .light
+    @MainActor
+    private static var cachedSnapshot: Snapshot?
 
-    @MainActor private static var snapshot: Snapshot {
+    @MainActor
+    private static var snapshot: Snapshot {
         let version = GhosttyService.shared.configVersion
         let appearance = ThemeService.shared.activeAppearance()
         if let cachedSnapshot, cachedVersion == version, cachedAppearance == appearance {

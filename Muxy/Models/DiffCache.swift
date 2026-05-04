@@ -14,9 +14,12 @@ final class DiffCache {
     private(set) var loadingPaths: Set<String> = []
     private(set) var errorsByPath: [String: String] = [:]
 
-    @ObservationIgnored private var accessOrder: [String] = []
-    @ObservationIgnored nonisolated(unsafe) private var tasks: [String: Task<Void, Never>] = [:]
-    @ObservationIgnored private let cap: Int
+    @ObservationIgnored
+    private var accessOrder: [String] = []
+    @ObservationIgnored
+    nonisolated(unsafe) private var tasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored
+    private let cap: Int
 
     init(cap: Int = 50) {
         self.cap = cap

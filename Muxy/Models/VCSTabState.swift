@@ -127,7 +127,8 @@ final class VCSTabState {
         }
     }
 
-    @ObservationIgnored private var isLoaded = false
+    @ObservationIgnored
+    private var isLoaded = false
 
     var pullRequests: [GitRepositoryService.PRListItem] = []
     var isLoadingPullRequests = false
@@ -174,21 +175,35 @@ final class VCSTabState {
         return true
     }
 
-    @ObservationIgnored private let git = GitRepositoryService()
-    @ObservationIgnored private var loadFilesTask: Task<Void, Never>?
-    @ObservationIgnored private var branchTask: Task<Void, Never>?
-    @ObservationIgnored private var prInfoTask: Task<Void, Never>?
-    @ObservationIgnored private var loadBranchesTask: Task<Void, Never>?
-    @ObservationIgnored private var commitLogTask: Task<Void, Never>?
-    @ObservationIgnored private var prListTask: Task<Void, Never>?
-    @ObservationIgnored private var prAutoSyncTask: Task<Void, Never>?
-    @ObservationIgnored private var watcher: DirectoryWatcher?
-    @ObservationIgnored nonisolated(unsafe) private var remoteChangeObserver: NSObjectProtocol?
-    @ObservationIgnored private var isRefreshing = false
-    @ObservationIgnored private var pendingRefresh = false
-    @ObservationIgnored private var lastFetchedHeadSha: String?
+    @ObservationIgnored
+    private let git = GitRepositoryService()
+    @ObservationIgnored
+    private var loadFilesTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var branchTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var prInfoTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var loadBranchesTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var commitLogTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var prListTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var prAutoSyncTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var watcher: DirectoryWatcher?
+    @ObservationIgnored
+    nonisolated(unsafe) private var remoteChangeObserver: NSObjectProtocol?
+    @ObservationIgnored
+    private var isRefreshing = false
+    @ObservationIgnored
+    private var pendingRefresh = false
+    @ObservationIgnored
+    private var lastFetchedHeadSha: String?
     private(set) var hasCompletedInitialLoad = false
-    @ObservationIgnored private static let commitsPerPage = 100
+    @ObservationIgnored
+    private static let commitsPerPage = 100
 
     init(projectPath: String) {
         self.projectPath = projectPath

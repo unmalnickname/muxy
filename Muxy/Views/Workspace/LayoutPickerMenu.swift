@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct LayoutPickerMenu: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self)
+    private var appState
     let projectID: UUID
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         let layouts = appState.availableLayouts(for: projectID)

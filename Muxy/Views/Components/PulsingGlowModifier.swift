@@ -5,8 +5,10 @@ struct PulsingGlowModifier: ViewModifier {
     let color: Color
     let duration: Double
 
-    @State private var pulse = false
-    @State private var animationID = 0
+    @State
+    private var pulse = false
+    @State
+    private var animationID = 0
 
     func body(content: Content) -> some View {
         content

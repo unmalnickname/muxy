@@ -2,16 +2,24 @@ import SwiftUI
 
 struct SidebarFooter: View {
     var expanded: Bool = false
-    @AppStorage(AIUsageSettingsStore.usageEnabledKey) private var usageEnabled = false
-    @AppStorage(AIUsageSettingsStore.usageDisplayModeKey) private var usageDisplayModeRaw = AIUsageSettingsStore.defaultUsageDisplayMode
+    @AppStorage(AIUsageSettingsStore.usageEnabledKey)
+    private var usageEnabled = false
+    @AppStorage(AIUsageSettingsStore.usageDisplayModeKey)
+    private var usageDisplayModeRaw = AIUsageSettingsStore.defaultUsageDisplayMode
         .rawValue
-    @AppStorage(AIUsageSettingsStore.sidebarPreviewProviderIDKey) private var pinnedPreviewProviderID: String = ""
-    @State private var showThemePicker = false
-    @State private var showNotifications = false
-    @State private var showAIUsagePopover = false
-    @State private var testGlowIndex = 0
+    @AppStorage(AIUsageSettingsStore.sidebarPreviewProviderIDKey)
+    private var pinnedPreviewProviderID: String = ""
+    @State
+    private var showThemePicker = false
+    @State
+    private var showNotifications = false
+    @State
+    private var showAIUsagePopover = false
+    @State
+    private var testGlowIndex = 0
     private let usageService = AIUsageService.shared
-    @Environment(AttentionState.self) private var attentionState
+    @Environment(AttentionState.self)
+    private var attentionState
 
     private var usageDisplayMode: AIUsageDisplayMode {
         AIUsageDisplayMode(rawValue: usageDisplayModeRaw) ?? AIUsageSettingsStore.defaultUsageDisplayMode

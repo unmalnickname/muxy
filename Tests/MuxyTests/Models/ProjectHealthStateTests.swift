@@ -114,7 +114,7 @@ struct ProjectHealthStateTests {
 
         let gitleaks = state.workflowItems.first { $0.id == "gitleaks" }
         #expect(gitleaks != nil)
-        #expect(gitleaks?.status == .installed)
+        #expect(gitleaks?.status == .active)
 
         let githooks = state.workflowItems.first { $0.id == "githooks" }
         #expect(githooks != nil)

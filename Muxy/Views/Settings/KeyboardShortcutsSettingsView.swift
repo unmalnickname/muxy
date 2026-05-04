@@ -22,17 +22,28 @@ struct KeyboardShortcutsSettingsView: View {
         }
     }
 
-    @State private var section: ListSection = .app
-    @State private var recordingAction: ShortcutAction?
-    @State private var recordingCommandPrefix = false
-    @State private var recordingCommandShortcutID: UUID?
-    @State private var pendingCommandShortcutID: UUID?
-    @State private var searchText = ""
-    @State private var conflictWarning: (action: ShortcutAction, existing: ShortcutAction)?
-    @State private var commandPrefixConflictWarning: String?
-    @State private var commandConflictWarning: (id: UUID, message: String)?
-    @State private var deleteAllCommandShortcutsSecondsRemaining = 0
-    @State private var deleteAllCommandShortcutsTask: Task<Void, Never>?
+    @State
+    private var section: ListSection = .app
+    @State
+    private var recordingAction: ShortcutAction?
+    @State
+    private var recordingCommandPrefix = false
+    @State
+    private var recordingCommandShortcutID: UUID?
+    @State
+    private var pendingCommandShortcutID: UUID?
+    @State
+    private var searchText = ""
+    @State
+    private var conflictWarning: (action: ShortcutAction, existing: ShortcutAction)?
+    @State
+    private var commandPrefixConflictWarning: String?
+    @State
+    private var commandConflictWarning: (id: UUID, message: String)?
+    @State
+    private var deleteAllCommandShortcutsSecondsRemaining = 0
+    @State
+    private var deleteAllCommandShortcutsTask: Task<Void, Never>?
 
     private var store: KeyBindingStore { KeyBindingStore.shared }
     private var commandStore: CommandShortcutStore { CommandShortcutStore.shared }
@@ -371,7 +382,8 @@ private struct ShortcutRow: View {
     let onRecord: (KeyCombo) -> Void
     let onCancel: () -> Void
     let onReset: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -447,7 +459,8 @@ private struct CommandPrefixRow: View {
     let onRecord: (KeyCombo) -> Void
     let onCancel: () -> Void
     let onReset: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -521,7 +534,8 @@ private struct CommandShortcutRow: View {
         static let shortcutControlWidth: CGFloat = 130
     }
 
-    @Binding var shortcut: CommandShortcut
+    @Binding
+    var shortcut: CommandShortcut
     let prefixCombo: KeyCombo
     let isRecording: Bool
     let conflictMessage: String?
@@ -529,8 +543,10 @@ private struct CommandShortcutRow: View {
     let onRecord: (KeyCombo) -> Void
     let onCancel: () -> Void
     let onDelete: () -> Void
-    @State private var hovered = false
-    @State private var deleteButtonHovered = false
+    @State
+    private var hovered = false
+    @State
+    private var deleteButtonHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {

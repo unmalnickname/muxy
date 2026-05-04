@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct DiffViewerPane: View {
-    @Bindable var state: DiffViewerTabState
+    @Bindable
+    var state: DiffViewerTabState
     let focused: Bool
     let onFocus: () -> Void
 
@@ -29,7 +30,8 @@ struct DiffViewerPane: View {
 }
 
 private struct DiffViewerBreadcrumb: View {
-    @Bindable var state: DiffViewerTabState
+    @Bindable
+    var state: DiffViewerTabState
 
     private var loadedDiff: DiffCache.LoadedDiff? {
         state.vcs.diffCache.diff(for: state.filePath)

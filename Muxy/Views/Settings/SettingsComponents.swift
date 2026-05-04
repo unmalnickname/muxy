@@ -15,7 +15,8 @@ enum SettingsMetrics {
 }
 
 struct SettingsContainer<Content: View>: View {
-    @ViewBuilder var content: Content
+    @ViewBuilder
+    var content: Content
 
     var body: some View {
         ScrollView {
@@ -31,7 +32,8 @@ struct SettingsSection<Content: View>: View {
     let title: String
     let footer: String?
     let showsDivider: Bool
-    @ViewBuilder var content: Content
+    @ViewBuilder
+    var content: Content
 
     init(
         _ title: String,
@@ -75,7 +77,8 @@ struct SettingsSection<Content: View>: View {
 
 struct SettingsRow<Content: View>: View {
     let label: String
-    @ViewBuilder var content: Content
+    @ViewBuilder
+    var content: Content
 
     init(_ label: String, @ViewBuilder content: () -> Content) {
         self.label = label
@@ -96,7 +99,8 @@ struct SettingsRow<Content: View>: View {
 
 struct SettingsToggleRow: View {
     let label: String
-    @Binding var isOn: Bool
+    @Binding
+    var isOn: Bool
 
     var body: some View {
         SettingsRow(label) {
@@ -112,7 +116,8 @@ struct SettingsPickerRow<Option: CaseIterable & Identifiable & RawRepresentable>
     where Option.RawValue == String, Option.AllCases: RandomAccessCollection
 {
     let label: String
-    @Binding var selection: String
+    @Binding
+    var selection: String
     var width: CGFloat = SettingsMetrics.controlWidth
 
     var body: some View {

@@ -6,7 +6,8 @@ struct AIUsagePreviewButton: View {
     let expanded: Bool
     let onTap: () -> Void
 
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     private var foreground: Color {
         hovered ? MuxyTheme.fg : MuxyTheme.fgMuted
@@ -127,7 +128,8 @@ struct AIUsagePanel: View {
 struct AIProviderUsageView: View {
     let snapshot: AIProviderUsageSnapshot
 
-    @AppStorage(AIUsageSettingsStore.sidebarPreviewProviderIDKey) private var pinnedRawValue: String = ""
+    @AppStorage(AIUsageSettingsStore.sidebarPreviewProviderIDKey)
+    private var pinnedRawValue: String = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -171,9 +173,11 @@ struct AIUsageMetricRowView: View {
     let providerID: String
     let isPinned: Bool
 
-    @AppStorage(AIUsageSettingsStore.usageDisplayModeKey) private var usageDisplayModeRaw = AIUsageSettingsStore.defaultUsageDisplayMode
+    @AppStorage(AIUsageSettingsStore.usageDisplayModeKey)
+    private var usageDisplayModeRaw = AIUsageSettingsStore.defaultUsageDisplayMode
         .rawValue
-    @State private var pinHovered = false
+    @State
+    private var pinHovered = false
 
     private var canPin: Bool { row.percent != nil }
 

@@ -20,7 +20,8 @@ struct NotificationPanelItem: Identifiable {
 }
 
 struct NotificationPanel: View {
-    @Environment(AppState.self) private var appState
+    @Environment(AppState.self)
+    private var appState
     let onDismiss: () -> Void
 
     private var items: [NotificationPanelItem] {
@@ -143,7 +144,8 @@ private struct NotificationRow: View {
     let item: NotificationPanelItem
     let isHighlighted: Bool
     let onRemove: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {

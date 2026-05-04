@@ -158,7 +158,8 @@ final class ViewportContainerView: NSView {
 }
 
 struct CodeEditorView: NSViewRepresentable {
-    @Bindable var state: EditorTabState
+    @Bindable
+    var state: EditorTabState
     let editorSettings: EditorSettings
     let themeVersion: Int
     let showsVerticalScroller: Bool

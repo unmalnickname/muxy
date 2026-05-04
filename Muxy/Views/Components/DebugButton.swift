@@ -2,8 +2,10 @@ import Darwin
 import SwiftUI
 
 struct DebugButton: View {
-    @State private var showingPopover = false
-    @State private var hovered = false
+    @State
+    private var showingPopover = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button {
@@ -26,7 +28,8 @@ struct DebugButton: View {
 }
 
 private struct DebugInfoPopover: View {
-    @State private var snapshot = DebugMetrics.current()
+    @State
+    private var snapshot = DebugMetrics.current()
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {

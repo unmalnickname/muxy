@@ -2,19 +2,30 @@ import AppKit
 import SwiftUI
 
 struct VCSTabView: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
     let focused: Bool
     let onFocus: () -> Void
-    @Environment(AppState.self) private var appState
-    @Environment(ProjectStore.self) private var projectStore
-    @Environment(WorktreeStore.self) private var worktreeStore
-    @State private var showDiscardAllConfirmation = false
-    @State private var pendingDiscardPath: String?
-    @State private var showCreateWorktreeSheet = false
-    @State private var showCreateBranchSheet = false
-    @State private var showInlinePRForm = false
-    @State private var pendingClosePR: GitRepositoryService.PRInfo?
-    @State private var pendingCheckoutPR: GitRepositoryService.PRListItem?
+    @Environment(AppState.self)
+    private var appState
+    @Environment(ProjectStore.self)
+    private var projectStore
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
+    @State
+    private var showDiscardAllConfirmation = false
+    @State
+    private var pendingDiscardPath: String?
+    @State
+    private var showCreateWorktreeSheet = false
+    @State
+    private var showCreateBranchSheet = false
+    @State
+    private var showInlinePRForm = false
+    @State
+    private var pendingClosePR: GitRepositoryService.PRInfo?
+    @State
+    private var pendingCheckoutPR: GitRepositoryService.PRListItem?
     private var commitEnabled: Bool {
         state.hasStagedChanges && !state.commitMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -682,8 +693,10 @@ struct VCSTabView: View {
 }
 
 struct VCSSectionVisibilityMenu: View {
-    @Bindable var state: VCSTabState
-    @State private var hovered = false
+    @Bindable
+    var state: VCSTabState
+    @State
+    private var hovered = false
 
     private struct Row: Identifiable {
         let id: String
@@ -728,12 +741,14 @@ struct VCSSectionVisibilityMenu: View {
 }
 
 struct PRPill: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
     let onRequestCreate: () -> Void
     let onRequestMerge: (GitRepositoryService.PRInfo, GitRepositoryService.PRMergeMethod) -> Void
     let onRequestClose: (GitRepositoryService.PRInfo) -> Void
 
-    @State private var showPRPopover = false
+    @State
+    private var showPRPopover = false
 
     var body: some View {
         if !state.hasFetchedPullRequestInfo {
@@ -897,14 +912,16 @@ struct PRPill: View {
 }
 
 struct PRPopover: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
     let info: GitRepositoryService.PRInfo
     let onMerge: (GitRepositoryService.PRMergeMethod) -> Void
     let onClose: () -> Void
     let onOpenInBrowser: () -> Void
     let onRefresh: () -> Void
 
-    @State private var mergeMethod: GitRepositoryService.PRMergeMethod = .squash
+    @State
+    private var mergeMethod: GitRepositoryService.PRMergeMethod = .squash
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -1169,11 +1186,15 @@ struct PRPopover: View {
 }
 
 private struct SectionSplitLayout: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
     let onFocus: () -> Void
-    @Binding var showDiscardAllConfirmation: Bool
-    @Binding var pendingDiscardPath: String?
-    @Binding var pendingCheckoutPR: GitRepositoryService.PRListItem?
+    @Binding
+    var showDiscardAllConfirmation: Bool
+    @Binding
+    var pendingDiscardPath: String?
+    @Binding
+    var pendingCheckoutPR: GitRepositoryService.PRListItem?
     let onOpenInEditor: (String) -> Void
     let onOpenDiff: (String, Bool) -> Void
 
@@ -1649,7 +1670,8 @@ private struct FileRow: View {
     let onDiscard: () -> Void
     let onOpenInEditor: () -> Void
     let onOpenDiff: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     private var statusColor: Color {
         switch statusText.first {

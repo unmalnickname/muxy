@@ -64,7 +64,7 @@ struct InsightItem: Identifiable {
     var agentProfile: AgentProfile?
 }
 
-let AgentProfiles: [String: AgentProfile] = [
+let agentProfiles: [String: AgentProfile] = [
     "opencode": AgentProfile(
         id: "opencode",
         name: "OpenCode",
@@ -138,7 +138,7 @@ enum SuggestionSeverity: String, Codable {
     case optional
 }
 
-let TaskTypeSkills: [String: [String]] = [
+let taskTypeSkills: [String: [String]] = [
     "feature": ["agent-workflow", "opencode", "nova-command"],
     "fix": ["agent-workflow", "opencode"],
     "refactor": ["opencode", "agent-workflow"],
@@ -149,7 +149,7 @@ let TaskTypeSkills: [String: [String]] = [
     "test": ["agent-workflow"],
 ]
 
-let TaskTypeLabels: [String: String] = [
+let taskTypeLabels: [String: String] = [
     "feature": "Feature Development",
     "fix": "Bug Fix",
     "refactor": "Refactoring",
@@ -417,7 +417,7 @@ final class ProjectHealthState {
         case "Python": "pi"
         default: "opencode"
         }
-        let profile = AgentProfiles[recommendedAgent]
+        let profile = agentProfiles[recommendedAgent]
         results.append(InsightItem(
             id: "agent", label: "Recommended Agent",
             value: "\(recommendedAgent) (\(stackLabel))",
@@ -431,7 +431,7 @@ final class ProjectHealthState {
            !chosen.isEmpty
         {
             selectedAgent = chosen
-            let chosenProfile = AgentProfiles[chosen]
+            let chosenProfile = agentProfiles[chosen]
             let matches = chosen == recommendedAgent
             results.append(InsightItem(
                 id: "selected-agent", label: "Selected Agent",
@@ -598,22 +598,23 @@ final class ProjectHealthState {
 
     func detectContextGaps(taskType: String, available: [String]) -> [ContextSuggestion] {
         guard taskType != "unknown" else {
-            return [ContextSuggestion(
+            let suggestion = ContextSuggestion(
                 id: "no-task",
                 skillName: "Set a task type",
                 reason: "Task type unknown — cannot suggest context",
                 severity: .optional
-            ),]
+            )
+            return [suggestion]
         }
 
-        let needed = TaskTypeSkills[taskType] ?? []
+        let needed = taskTypeSkills[taskType] ?? []
         var suggestions: [ContextSuggestion] = []
 
         for skill in needed {
             if available.contains(skill) {
                 suggestions.append(ContextSuggestion(
                     id: "has-\(skill)", skillName: skill,
-                    reason: "Recommended for \(TaskTypeLabels[taskType] ?? taskType) tasks",
+                    reason: "Recommended for \(taskTypeLabels[taskType] ?? taskType) tasks",
                     severity: .optional
                 ))
             } else {

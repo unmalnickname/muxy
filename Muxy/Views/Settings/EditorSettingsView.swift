@@ -1,10 +1,14 @@
 import SwiftUI
 
 struct EditorSettingsView: View {
-    @State private var settings = EditorSettings.shared
-    @State private var monoFonts: [String] = []
-    @State private var markdownFonts: [String] = []
-    @State private var allowMarkdownRemoteImages = MarkdownPreviewPreferences.allowRemoteImages
+    @State
+    private var settings = EditorSettings.shared
+    @State
+    private var monoFonts: [String] = []
+    @State
+    private var markdownFonts: [String] = []
+    @State
+    private var allowMarkdownRemoteImages = MarkdownPreviewPreferences.allowRemoteImages
 
     private var showsAppearanceSection: Bool { settings.defaultEditor == .builtIn }
 

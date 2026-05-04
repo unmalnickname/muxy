@@ -12,18 +12,29 @@ struct ProjectRow: View {
     let onSetLogo: (String?) -> Void
     let onSetIconColor: (String?) -> Void
 
-    @Environment(AppState.self) private var appState
-    @Environment(WorktreeStore.self) private var worktreeStore
+    @Environment(AppState.self)
+    private var appState
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
 
-    @State private var hovered = false
-    @State private var isRenaming = false
-    @State private var renameText = ""
-    @State private var showWorktreePopover = false
-    @State private var isGitRepo = false
-    @State private var showCreateWorktreeSheet = false
-    @State private var logoCropImage: IdentifiableImage?
-    @State private var isRefreshingWorktrees = false
-    @State private var showColorPicker = false
+    @State
+    private var hovered = false
+    @State
+    private var isRenaming = false
+    @State
+    private var renameText = ""
+    @State
+    private var showWorktreePopover = false
+    @State
+    private var isGitRepo = false
+    @State
+    private var showCreateWorktreeSheet = false
+    @State
+    private var logoCropImage: IdentifiableImage?
+    @State
+    private var isRefreshingWorktrees = false
+    @State
+    private var showColorPicker = false
 
     private var isActive: Bool {
         appState.activeProjectID == project.id
@@ -37,7 +48,8 @@ struct ProjectRow: View {
         String(project.name.prefix(1)).uppercased()
     }
 
-    @Environment(AttentionState.self) private var attentionState
+    @Environment(AttentionState.self)
+    private var attentionState
 
     var body: some View {
         projectIcon

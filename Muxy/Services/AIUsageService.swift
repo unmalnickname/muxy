@@ -169,9 +169,12 @@ final class AIUsageService {
         AIUsageSettingsStore.autoRefreshInterval().timeInterval
     }
 
-    @ObservationIgnored private var refreshTask: Task<[AIProviderUsageSnapshot], Never>?
-    @ObservationIgnored private var fetchedSnapshotsCache: [AIProviderUsageSnapshot] = []
-    @ObservationIgnored private var previousSnapshotsCache: [AIProviderUsageSnapshot] = []
+    @ObservationIgnored
+    private var refreshTask: Task<[AIProviderUsageSnapshot], Never>?
+    @ObservationIgnored
+    private var fetchedSnapshotsCache: [AIProviderUsageSnapshot] = []
+    @ObservationIgnored
+    private var previousSnapshotsCache: [AIProviderUsageSnapshot] = []
 
     private func usedPercent(for snapshot: AIProviderUsageSnapshot) -> Double? {
         guard case .available = snapshot.state else { return nil }

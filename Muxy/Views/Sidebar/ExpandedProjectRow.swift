@@ -12,22 +12,34 @@ struct ExpandedProjectRow: View {
     let onSetLogo: (String?) -> Void
     let onSetIconColor: (String?) -> Void
 
-    @Environment(AppState.self) private var appState
-    @Environment(WorktreeStore.self) private var worktreeStore
+    @Environment(AppState.self)
+    private var appState
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
 
     @AppStorage(GeneralSettingsKeys.autoExpandWorktreesOnProjectSwitch)
     private var autoExpandWorktrees = false
 
-    @State private var hovered = false
-    @State private var isRenaming = false
-    @State private var renameText = ""
-    @State private var isGitRepo = false
-    @State private var showCreateWorktreeSheet = false
-    @State private var logoCropImage: IdentifiableExpandedImage?
-    @State private var worktreesExpanded = false
-    @State private var isRefreshingWorktrees = false
-    @State private var showColorPicker = false
-    @Environment(AttentionState.self) private var attentionState
+    @State
+    private var hovered = false
+    @State
+    private var isRenaming = false
+    @State
+    private var renameText = ""
+    @State
+    private var isGitRepo = false
+    @State
+    private var showCreateWorktreeSheet = false
+    @State
+    private var logoCropImage: IdentifiableExpandedImage?
+    @State
+    private var worktreesExpanded = false
+    @State
+    private var isRefreshingWorktrees = false
+    @State
+    private var showColorPicker = false
+    @Environment(AttentionState.self)
+    private var attentionState
 
     private var isActive: Bool {
         appState.activeProjectID == project.id

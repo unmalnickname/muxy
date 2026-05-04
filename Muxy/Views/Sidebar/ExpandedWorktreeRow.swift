@@ -10,10 +10,14 @@ struct ExpandedWorktreeRow: View {
     let onRename: (String) -> Void
     let onRemove: (() -> Void)?
 
-    @State private var hovered = false
-    @State private var isRenaming = false
-    @State private var renameText = ""
-    @FocusState private var renameFieldFocused: Bool
+    @State
+    private var hovered = false
+    @State
+    private var isRenaming = false
+    @State
+    private var renameText = ""
+    @FocusState
+    private var renameFieldFocused: Bool
 
     private var displayName: String {
         if worktree.isPrimary, worktree.name.isEmpty { return "main" }

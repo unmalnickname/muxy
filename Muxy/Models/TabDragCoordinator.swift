@@ -39,8 +39,10 @@ final class TabDragCoordinator {
     }
 
     var activeDrag: DragInfo?
-    @ObservationIgnored var globalPosition: CGPoint = .zero
-    @ObservationIgnored var areaFramesByProject: [UUID: [UUID: CGRect]] = [:]
+    @ObservationIgnored
+    var globalPosition: CGPoint = .zero
+    @ObservationIgnored
+    var areaFramesByProject: [UUID: [UUID: CGRect]] = [:]
     private(set) var hoveredAreaID: UUID?
     private(set) var hoveredZone: DropZone?
 

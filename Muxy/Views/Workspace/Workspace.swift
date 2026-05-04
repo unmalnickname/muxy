@@ -4,9 +4,12 @@ struct TerminalArea: View {
     let project: Project
     let worktreeKey: WorktreeKey
     let isActiveProject: Bool
-    @Environment(AppState.self) private var appState
-    @Environment(TabDragCoordinator.self) private var dragCoordinator
-    @Environment(\.openWindow) private var openWindow
+    @Environment(AppState.self)
+    private var appState
+    @Environment(TabDragCoordinator.self)
+    private var dragCoordinator
+    @Environment(\.openWindow)
+    private var openWindow
 
     private var root: SplitNode? {
         appState.workspaceRoots[worktreeKey]

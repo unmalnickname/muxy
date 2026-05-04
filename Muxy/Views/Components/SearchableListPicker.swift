@@ -6,10 +6,13 @@ struct SearchableListPicker<Item: Identifiable, RowContent: View>: View {
     let placeholder: String
     let emptyLabel: String
     let onSelect: (Item) -> Void
-    @ViewBuilder let row: (Item, Bool) -> RowContent
+    @ViewBuilder
+    let row: (Item, Bool) -> RowContent
 
-    @State private var searchText = ""
-    @State private var highlightedIndex: Int?
+    @State
+    private var searchText = ""
+    @State
+    private var highlightedIndex: Int?
 
     private var filteredItems: [Item] {
         guard !searchText.isEmpty else { return items }

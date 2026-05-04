@@ -2,11 +2,15 @@ import SwiftUI
 
 struct AIUsageSettingsView: View {
     private let usageService = AIUsageService.shared
-    @AppStorage(AIUsageSettingsStore.usageEnabledKey) private var usageEnabled = false
-    @AppStorage(AIUsageSettingsStore.showSecondaryLimitsKey) private var showSecondaryLimits = AIUsageSettingsStore
+    @AppStorage(AIUsageSettingsStore.usageEnabledKey)
+    private var usageEnabled = false
+    @AppStorage(AIUsageSettingsStore.showSecondaryLimitsKey)
+    private var showSecondaryLimits = AIUsageSettingsStore
         .defaultShowSecondaryLimits
-    @State private var usageDisplayMode = AIUsageSettingsStore.usageDisplayMode()
-    @State private var autoRefreshInterval = AIUsageSettingsStore.autoRefreshInterval()
+    @State
+    private var usageDisplayMode = AIUsageSettingsStore.usageDisplayMode()
+    @State
+    private var autoRefreshInterval = AIUsageSettingsStore.autoRefreshInterval()
 
     private var providers: [AIUsageProviderCatalogEntry] {
         AIUsageProviderCatalog.providers

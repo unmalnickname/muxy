@@ -1,11 +1,16 @@
 import SwiftUI
 
 struct VCSWindowView: View {
-    @Environment(AppState.self) private var appState
-    @Environment(ProjectStore.self) private var projectStore
-    @Environment(WorktreeStore.self) private var worktreeStore
-    @State private var vcsStates: [WorktreeKey: VCSTabState] = [:]
-    @State private var activeState: VCSTabState?
+    @Environment(AppState.self)
+    private var appState
+    @Environment(ProjectStore.self)
+    private var projectStore
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
+    @State
+    private var vcsStates: [WorktreeKey: VCSTabState] = [:]
+    @State
+    private var activeState: VCSTabState?
 
     private var activeProject: Project? {
         guard let pid = appState.activeProjectID else { return nil }

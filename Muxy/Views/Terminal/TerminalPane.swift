@@ -9,7 +9,8 @@ struct TerminalPane: View {
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
 
-    @Bindable private var ownership = PaneOwnershipStore.shared
+    @Bindable
+    private var ownership = PaneOwnershipStore.shared
 
     private var remoteOwnerName: String? {
         if case let .remote(_, name) = ownership.owner(for: state.id) { name } else { nil }
@@ -112,8 +113,10 @@ struct TerminalBridge: NSViewRepresentable {
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
-    @Environment(\.overlayActive) private var overlayActive
-    @Environment(\.activeWorktreeKey) private var worktreeKey
+    @Environment(\.overlayActive)
+    private var overlayActive
+    @Environment(\.activeWorktreeKey)
+    private var worktreeKey
 
     final class Coordinator {
         var wasFocused = false

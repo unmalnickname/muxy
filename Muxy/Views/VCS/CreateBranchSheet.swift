@@ -5,8 +5,10 @@ struct CreateBranchSheet: View {
     let onCreate: (String) -> Void
     let onCancel: () -> Void
 
-    @State private var name: String = ""
-    @FocusState private var nameFocused: Bool
+    @State
+    private var name: String = ""
+    @FocusState
+    private var nameFocused: Bool
 
     private var trimmed: String {
         name.trimmingCharacters(in: .whitespaces)

@@ -8,7 +8,8 @@ struct BranchPicker: View {
     let onRefresh: () -> Void
     let onCreateBranch: (() -> Void)?
     let onDeleteBranch: ((String) -> Void)?
-    @State private var showPopover = false
+    @State
+    private var showPopover = false
 
     private var branchItems: [BranchItem] {
         branches.map { BranchItem(name: $0) }
@@ -125,7 +126,8 @@ private struct BranchRow: View {
     let name: String
     let isActive: Bool
     let isHighlighted: Bool
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         HStack(spacing: 10) {

@@ -2,11 +2,16 @@ import AppKit
 import SwiftUI
 
 struct CommitHistoryView: View {
-    @Bindable var state: VCSTabState
-    @State private var branchNameInput = ""
-    @State private var tagNameInput = ""
-    @State private var pendingBranchHash: String?
-    @State private var pendingTagHash: String?
+    @Bindable
+    var state: VCSTabState
+    @State
+    private var branchNameInput = ""
+    @State
+    private var tagNameInput = ""
+    @State
+    private var pendingBranchHash: String?
+    @State
+    private var pendingTagHash: String?
 
     var body: some View {
         ScrollView {
@@ -125,7 +130,8 @@ private struct CommitRow: View {
     let onRevert: (String, String) -> Void
     let onCreateBranch: (String) -> Void
     let onCreateTag: (String) -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     private var dotColor: Color {
         if commit.isMerge {
@@ -332,7 +338,8 @@ private struct NameInputSheet: View {
     let title: String
     let placeholder: String
     let actionTitle: String
-    @Binding var name: String
+    @Binding
+    var name: String
     let onSubmit: () -> Void
     let onCancel: () -> Void
 

@@ -2,7 +2,8 @@ import SwiftUI
 
 struct FileTreeIconButton: View {
     let action: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button(action: action) {

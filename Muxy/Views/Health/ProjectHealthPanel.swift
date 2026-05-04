@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct ProjectHealthPanel: View {
-    @Bindable var state: ProjectHealthState
+    @Bindable
+    var state: ProjectHealthState
     let projectPath: String
     let projectName: String
     let onRefresh: () -> Void
@@ -98,12 +99,18 @@ struct ProjectHealthPanel: View {
         }
     }
 
-    @State private var popoverAgent: AgentProfile?
-    @State private var showAgentRoster = false
-    @State private var rosterSelectedAgent: AgentProfile?
-    @State private var showTaskPicker = false
-    @State private var draftTaskType = "unknown"
-    @State private var draftDescription = ""
+    @State
+    private var popoverAgent: AgentProfile?
+    @State
+    private var showAgentRoster = false
+    @State
+    private var rosterSelectedAgent: AgentProfile?
+    @State
+    private var showTaskPicker = false
+    @State
+    private var draftTaskType = "unknown"
+    @State
+    private var draftDescription = ""
 
     private var insightsSection: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -125,7 +132,7 @@ struct ProjectHealthPanel: View {
                                     .onHover { hovering in
                                         if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                                     }
-                                Text("(\(AgentProfiles.count))")
+                                Text("(\(agentProfiles.count))")
                                     .font(.system(size: 9))
                                     .foregroundStyle(MuxyTheme.fgDim)
                                     .onTapGesture { showAgentRoster = true }
@@ -180,7 +187,7 @@ struct ProjectHealthPanel: View {
                     .font(.system(size: 13))
                     .foregroundStyle(state.currentTaskType == "unknown" ? MuxyTheme.fgDim : MuxyTheme.accent)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(TaskTypeLabels[state.currentTaskType] ?? "Unknown Task")
+                    Text(taskTypeLabels[state.currentTaskType] ?? "Unknown Task")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(MuxyTheme.fg)
                     Text("Auto-detected from \(state.currentTaskType == "unknown" ? "branch" : "branch name")")
@@ -285,7 +292,7 @@ struct ProjectHealthPanel: View {
                         .font(.system(size: 12))
                         .foregroundStyle(type == state.currentTaskType ? .green : MuxyTheme.fgDim)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(TaskTypeLabels[type] ?? type)
+                        Text(taskTypeLabels[type] ?? type)
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(MuxyTheme.fg)
                     }
@@ -826,11 +833,13 @@ private struct AgentPopoverView: View {
 }
 
 private struct AgentRosterView: View {
-    @Binding var selectedAgent: AgentProfile?
+    @Binding
+    var selectedAgent: AgentProfile?
     var selectedId: String?
     let onOpenProfile: ((String) -> Void)?
     let onSelect: (String) -> Void
-    @State private var hoveredAgent: String?
+    @State
+    private var hoveredAgent: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -839,15 +848,15 @@ private struct AgentRosterView: View {
                     .font(.system(size: 12, weight: .bold))
                     .foregroundStyle(MuxyTheme.fg)
                 Spacer(minLength: 0)
-                if selectedId != nil {
-                    Text("Selected: \(selectedId!)")
+                if let selectedId {
+                    Text("Selected: \(selectedId)")
                         .font(.system(size: 9, weight: .medium))
                         .foregroundStyle(.green)
                 }
             }
             .padding(.bottom, 4)
 
-            ForEach(Array(AgentProfiles.values).sorted(by: { $0.name < $1.name })) { agent in
+            ForEach(Array(agentProfiles.values).sorted(by: { $0.name < $1.name })) { agent in
                 HStack(spacing: 10) {
                     Image(systemName: agent.id == selectedId ? "checkmark.circle.fill" : "person.circle.fill")
                         .font(.system(size: 20))

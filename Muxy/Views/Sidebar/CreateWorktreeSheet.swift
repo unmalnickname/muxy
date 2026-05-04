@@ -9,17 +9,28 @@ struct CreateWorktreeSheet: View {
     let project: Project
     let onFinish: (CreateWorktreeResult) -> Void
 
-    @Environment(WorktreeStore.self) private var worktreeStore
-    @State private var name: String = ""
-    @State private var branchName: String = ""
-    @State private var branchNameEdited = false
-    @State private var createNewBranch = true
-    @State private var selectedExistingBranch: String = ""
-    @State private var availableBranches: [String] = []
-    @State private var setupCommands: [String] = []
-    @State private var runSetup = false
-    @State private var inProgress = false
-    @State private var errorMessage: String?
+    @Environment(WorktreeStore.self)
+    private var worktreeStore
+    @State
+    private var name: String = ""
+    @State
+    private var branchName: String = ""
+    @State
+    private var branchNameEdited = false
+    @State
+    private var createNewBranch = true
+    @State
+    private var selectedExistingBranch: String = ""
+    @State
+    private var availableBranches: [String] = []
+    @State
+    private var setupCommands: [String] = []
+    @State
+    private var runSetup = false
+    @State
+    private var inProgress = false
+    @State
+    private var errorMessage: String?
 
     private let gitRepository = GitRepositoryService()
     private let gitWorktree = GitWorktreeService.shared

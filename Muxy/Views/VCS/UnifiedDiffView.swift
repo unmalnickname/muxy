@@ -4,7 +4,8 @@ struct UnifiedDiffView: View {
     let rows: [DiffDisplayRow]
     let filePath: String
     var suppressLeadingTopBorder: Bool = false
-    @State private var themeRevision = 0
+    @State
+    private var themeRevision = 0
 
     private var chunks: [DiffChunk] {
         buildDiffChunks(from: rows)

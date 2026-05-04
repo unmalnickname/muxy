@@ -3,7 +3,8 @@ import SwiftUI
 struct AddProjectButton: View {
     var expanded: Bool = false
     let action: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button(action: action) {

@@ -82,18 +82,29 @@ final class EditorTabState: Identifiable {
     var markdownEditorScrollRequestVersion: Int = 0
     var markdownEditorScrollRequestY: CGFloat?
 
-    @ObservationIgnored var markdownEditorScrollY: CGFloat = 0
-    @ObservationIgnored var markdownEditorViewportHeight: CGFloat = 0
-    @ObservationIgnored var markdownEditorMaxScrollY: CGFloat = 0
-    @ObservationIgnored var markdownEditorLineHeight: CGFloat = 0
-    @ObservationIgnored var markdownPreviewGeometries: [MarkdownPreviewAnchorGeometry] = []
-    @ObservationIgnored var markdownPreviewMaxScrollTop: CGFloat = 0
-    @ObservationIgnored var markdownPreviewViewportHeight: CGFloat = 0
+    @ObservationIgnored
+    var markdownEditorScrollY: CGFloat = 0
+    @ObservationIgnored
+    var markdownEditorViewportHeight: CGFloat = 0
+    @ObservationIgnored
+    var markdownEditorMaxScrollY: CGFloat = 0
+    @ObservationIgnored
+    var markdownEditorLineHeight: CGFloat = 0
+    @ObservationIgnored
+    var markdownPreviewGeometries: [MarkdownPreviewAnchorGeometry] = []
+    @ObservationIgnored
+    var markdownPreviewMaxScrollTop: CGFloat = 0
+    @ObservationIgnored
+    var markdownPreviewViewportHeight: CGFloat = 0
 
-    @ObservationIgnored let markdownSyncCoordinator = MarkdownSyncCoordinator()
-    @ObservationIgnored private var markdownSyncAnchorsCache: [MarkdownSyncAnchor] = []
-    @ObservationIgnored private var markdownSyncAnchorsCacheVersion: Int = -1
-    @ObservationIgnored private(set) var syntaxHighlighter: SyntaxHighlighter?
+    @ObservationIgnored
+    let markdownSyncCoordinator = MarkdownSyncCoordinator()
+    @ObservationIgnored
+    private var markdownSyncAnchorsCache: [MarkdownSyncAnchor] = []
+    @ObservationIgnored
+    private var markdownSyncAnchorsCacheVersion: Int = -1
+    @ObservationIgnored
+    private(set) var syntaxHighlighter: SyntaxHighlighter?
 
     static let largeFileWarningThreshold: Int64 = 5 * 1024 * 1024
     static let largeFileRefuseThreshold: Int64 = 50 * 1024 * 1024
@@ -121,7 +132,8 @@ final class EditorTabState: Identifiable {
         Self.markdownExtensions.contains(fileExtension)
     }
 
-    @ObservationIgnored private var loadTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var loadTask: Task<Void, Never>?
 
     private enum FileLoadEvent {
         case initial(String, hasMore: Bool)

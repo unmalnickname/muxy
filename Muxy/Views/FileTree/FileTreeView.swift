@@ -3,14 +3,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct FileTreeView: View {
-    @Bindable var state: FileTreeState
+    @Bindable
+    var state: FileTreeState
     let onOpenFile: (String) -> Void
     let onOpenTerminal: (String) -> Void
     let onFileMoved: (String, String) -> Void
 
-    @State private var commands: FileTreeCommands
-    @State private var hasKeyboardFocus = false
-    @State private var focusToken = 0
+    @State
+    private var commands: FileTreeCommands
+    @State
+    private var hasKeyboardFocus = false
+    @State
+    private var focusToken = 0
 
     init(
         state: FileTreeState,
@@ -256,7 +260,8 @@ struct FileTreeView: View {
 private struct FileTreeRowGroup: View {
     let entry: FileTreeEntry
     let depth: Int
-    @Bindable var state: FileTreeState
+    @Bindable
+    var state: FileTreeState
     let commands: FileTreeCommands
     let onOpenFile: (String) -> Void
     let requestFocus: () -> Void
@@ -292,11 +297,13 @@ private struct FileTreeRowGroup: View {
 private struct FileTreeRow: View {
     let entry: FileTreeEntry
     let depth: Int
-    @Bindable var state: FileTreeState
+    @Bindable
+    var state: FileTreeState
     let commands: FileTreeCommands
     let onOpenFile: (String) -> Void
     let requestFocus: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     private var isSelected: Bool {
         state.isPathSelected(entry.absolutePath)
@@ -490,10 +497,14 @@ private struct FileTreeRenameField: View {
     let commit: (String) -> Void
     let cancel: () -> Void
 
-    @State private var text: String = ""
-    @FocusState private var focused: Bool
-    @State private var didAppear = false
-    @State private var didResolve = false
+    @State
+    private var text: String = ""
+    @FocusState
+    private var focused: Bool
+    @State
+    private var didAppear = false
+    @State
+    private var didResolve = false
 
     var body: some View {
         TextField("", text: $text)
@@ -629,7 +640,8 @@ private struct FileTreeDropDelegate: DropDelegate {
 
 private struct FileTreeKeyCapture: NSViewRepresentable {
     let focusToken: Int
-    @Binding var hasFocus: Bool
+    @Binding
+    var hasFocus: Bool
     let canHandleNav: () -> Bool
     let onArrowUp: () -> Void
     let onArrowDown: () -> Void

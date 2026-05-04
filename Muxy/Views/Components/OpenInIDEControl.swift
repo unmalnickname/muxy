@@ -7,10 +7,14 @@ struct OpenInIDEControl: View {
     let cursorProvider: () -> (line: Int?, column: Int?)
     var compact = true
 
-    @ObservedObject private var ideService = IDEIntegrationService.shared
-    @State private var hoveredPrimary = false
-    @State private var hoveredMenu = false
-    @State private var showingMenu = false
+    @ObservedObject
+    private var ideService = IDEIntegrationService.shared
+    @State
+    private var hoveredPrimary = false
+    @State
+    private var hoveredMenu = false
+    @State
+    private var showingMenu = false
 
     var body: some View {
         if compact {
@@ -238,7 +242,8 @@ private struct IDEMenuRow: View {
     let ide: IDEIntegrationService.IDEApplication
     let action: () -> Void
 
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button(action: action) {
@@ -267,7 +272,8 @@ private struct IDEMenuActionRow: View {
     let title: String
     let action: () -> Void
 
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button(action: action) {

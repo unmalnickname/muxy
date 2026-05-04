@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 struct PullRequestsListView: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
     let onCheckout: (GitRepositoryService.PRListItem) -> Void
 
     var body: some View {
@@ -166,7 +167,8 @@ struct PullRequestRow: View {
     let isCheckingOut: Bool
     let onCheckout: () -> Void
 
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         HStack(spacing: 8) {
@@ -276,7 +278,8 @@ struct PullRequestRow: View {
 }
 
 struct PullRequestsAutoSyncMenu: View {
-    @Bindable var state: VCSTabState
+    @Bindable
+    var state: VCSTabState
 
     private static let options: [(minutes: Int, label: String)] = [
         (0, "Off"),

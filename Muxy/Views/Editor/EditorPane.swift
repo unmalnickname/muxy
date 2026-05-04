@@ -1,12 +1,16 @@
 import SwiftUI
 
 struct EditorPane: View {
-    @Bindable var state: EditorTabState
+    @Bindable
+    var state: EditorTabState
     let focused: Bool
     let onFocus: () -> Void
-    @Environment(GhosttyService.self) private var ghostty
-    @State private var editorSettings = EditorSettings.shared
-    @FocusState private var markdownPreviewFocused: Bool
+    @Environment(GhosttyService.self)
+    private var ghostty
+    @State
+    private var editorSettings = EditorSettings.shared
+    @FocusState
+    private var markdownPreviewFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -282,8 +286,10 @@ struct EditorPane: View {
 }
 
 private struct EditorMarkdownModePicker: View {
-    @Binding var mode: EditorMarkdownViewMode
-    @Binding var scrollSyncEnabled: Bool
+    @Binding
+    var mode: EditorMarkdownViewMode
+    @Binding
+    var scrollSyncEnabled: Bool
 
     var body: some View {
         HStack(spacing: 2) {
@@ -348,7 +354,8 @@ private struct EditorMarkdownModePicker: View {
 }
 
 private struct EditorBreadcrumb: View {
-    @Bindable var state: EditorTabState
+    @Bindable
+    var state: EditorTabState
 
     private var relativePath: String {
         let full = state.filePath

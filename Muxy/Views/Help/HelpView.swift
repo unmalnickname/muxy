@@ -28,7 +28,8 @@ enum HelpSection: String, CaseIterable, Identifiable {
 }
 
 struct HelpView: View {
-    @State private var selection: HelpSection = .welcome
+    @State
+    private var selection: HelpSection = .welcome
 
     var body: some View {
         NavigationSplitView {

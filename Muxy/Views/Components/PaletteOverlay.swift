@@ -14,11 +14,16 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
     let onDismiss: () -> Void
     let row: (Item, Bool) -> AnyView
 
-    @State private var query = ""
-    @State private var results: [Item] = []
-    @State private var highlightedIndex: Int? = 0
-    @State private var isSearching = false
-    @State private var searchTask: Task<Void, Never>?
+    @State
+    private var query = ""
+    @State
+    private var results: [Item] = []
+    @State
+    private var highlightedIndex: Int? = 0
+    @State
+    private var isSearching = false
+    @State
+    private var searchTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -141,7 +146,8 @@ struct PaletteOverlay<Item: Identifiable & Sendable>: View {
 }
 
 struct PaletteSearchField: NSViewRepresentable {
-    @Binding var text: String
+    @Binding
+    var text: String
     let placeholder: String
     var fontSize: CGFloat = 13
     let onSubmit: () -> Void

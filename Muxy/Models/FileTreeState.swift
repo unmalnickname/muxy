@@ -41,11 +41,16 @@ final class FileTreeState {
     var cutPaths: Set<String> = []
     var dropHighlightPath: String?
 
-    @ObservationIgnored private var rootWatcher: DirectoryWatcher?
-    @ObservationIgnored private var directoryWatchers: [String: DirectoryWatcher] = [:]
-    @ObservationIgnored nonisolated(unsafe) private var remoteChangeObserver: NSObjectProtocol?
-    @ObservationIgnored private var refreshTask: Task<Void, Never>?
-    @ObservationIgnored private var statusTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var rootWatcher: DirectoryWatcher?
+    @ObservationIgnored
+    private var directoryWatchers: [String: DirectoryWatcher] = [:]
+    @ObservationIgnored
+    nonisolated(unsafe) private var remoteChangeObserver: NSObjectProtocol?
+    @ObservationIgnored
+    private var refreshTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var statusTask: Task<Void, Never>?
 
     init(rootPath: String) {
         self.rootPath = rootPath

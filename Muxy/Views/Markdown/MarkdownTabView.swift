@@ -37,7 +37,8 @@ struct MarkdownWebView: NSViewRepresentable {
     let content: String
     let filePath: String?
     let palette: MarkdownRenderer.Palette
-    @Binding var syncScrollRequest: CGFloat?
+    @Binding
+    var syncScrollRequest: CGFloat?
     let syncScrollRequestVersion: Int
     var scrollSyncEnabled = true
     var onScrollReport: ((MarkdownPreviewScrollReport) -> Void)?

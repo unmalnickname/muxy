@@ -48,15 +48,23 @@ enum AgentDurationOption: String, CaseIterable, Identifiable {
 }
 
 struct AttentionSettingsView: View {
-    @AppStorage(AttentionSettingsKeys.idleDetectionEnabled) private var idleDetectionEnabled = true
-    @AppStorage(AttentionSettingsKeys.idleThreshold) private var idleThresholdRaw = IdleThresholdOption.fiveMin.rawValue
-    @AppStorage(AttentionSettingsKeys.pulseSpeed) private var pulseSpeedRaw = "normal"
-    @AppStorage(AttentionSettingsKeys.agentDuration) private var agentDurationRaw = AgentDurationOption.tenSec.rawValue
-    @AppStorage(AttentionSettingsKeys.idleColor) private var idleColorHex = AttentionSettingsKeys.defaultIdleColor
-    @AppStorage(AttentionSettingsKeys.agentColor) private var agentColorHex = AttentionSettingsKeys.defaultAgentColor
+    @AppStorage(AttentionSettingsKeys.idleDetectionEnabled)
+    private var idleDetectionEnabled = true
+    @AppStorage(AttentionSettingsKeys.idleThreshold)
+    private var idleThresholdRaw = IdleThresholdOption.fiveMin.rawValue
+    @AppStorage(AttentionSettingsKeys.pulseSpeed)
+    private var pulseSpeedRaw = "normal"
+    @AppStorage(AttentionSettingsKeys.agentDuration)
+    private var agentDurationRaw = AgentDurationOption.tenSec.rawValue
+    @AppStorage(AttentionSettingsKeys.idleColor)
+    private var idleColorHex = AttentionSettingsKeys.defaultIdleColor
+    @AppStorage(AttentionSettingsKeys.agentColor)
+    private var agentColorHex = AttentionSettingsKeys.defaultAgentColor
 
-    @State private var showIdleColorPicker = false
-    @State private var showAgentColorPicker = false
+    @State
+    private var showIdleColorPicker = false
+    @State
+    private var showAgentColorPicker = false
 
     var body: some View {
         SettingsContainer {

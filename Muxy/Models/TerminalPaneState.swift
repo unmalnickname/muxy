@@ -11,7 +11,8 @@ final class TerminalPaneState: Identifiable {
     let startupCommandInteractive: Bool
     let externalEditorFilePath: String?
     let searchState = TerminalSearchState()
-    @ObservationIgnored private var titleDebounceTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var titleDebounceTask: Task<Void, Never>?
 
     init(
         projectPath: String,

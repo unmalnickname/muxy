@@ -67,8 +67,10 @@ final class IDEIntegrationService: ObservableObject {
         group: .otherTool
     )
 
-    @Published private(set) var installedApps: [IDEApplication] = []
-    @Published private(set) var selectedBundleIdentifier: String?
+    @Published
+    private(set) var installedApps: [IDEApplication] = []
+    @Published
+    private(set) var selectedBundleIdentifier: String?
 
     private let workspace: NSWorkspace
     private let defaults: UserDefaults

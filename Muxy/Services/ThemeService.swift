@@ -41,9 +41,12 @@ final class ThemeService {
     nonisolated static let defaultThemeName = "Muxy"
     nonisolated static let pinnedThemeNames: Set<String> = ["Muxy", "Muxy Light"]
 
-    @ObservationIgnored private let config: MuxyConfig
-    @ObservationIgnored private let ghostty: GhosttyService
-    @ObservationIgnored private var cachedColors: CachedThemeColors?
+    @ObservationIgnored
+    private let config: MuxyConfig
+    @ObservationIgnored
+    private let ghostty: GhosttyService
+    @ObservationIgnored
+    private var cachedColors: CachedThemeColors?
 
     private struct CachedThemeColors {
         let name: String

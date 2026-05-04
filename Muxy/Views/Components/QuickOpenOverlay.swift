@@ -25,7 +25,8 @@ struct QuickOpenOverlay: View {
 private struct FileResultRow: View {
     let result: FileSearchResult
     let isHighlighted: Bool
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     private var fileIcon: String {
         let ext = URL(fileURLWithPath: result.absolutePath).pathExtension.lowercased()

@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct SegmentedPicker<T: Hashable>: View {
-    @Binding var selection: T
+    @Binding
+    var selection: T
     let options: [(value: T, label: String)]
 
     var body: some View {

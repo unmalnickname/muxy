@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct PipelinePanel: View {
-    @Bindable var state: PipelineState
+    @Bindable
+    var state: PipelineState
     let projectPath: String
     let projectName: String
     let onRefresh: () -> Void

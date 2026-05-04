@@ -9,11 +9,14 @@ private let logger = Logger(subsystem: "app.muxy", category: "GhosttyService")
 final class GhosttyService {
     static let shared = GhosttyService()
 
-    @ObservationIgnored private(set) var app: ghostty_app_t?
+    @ObservationIgnored
+    private(set) var app: ghostty_app_t?
     private(set) var config: ghostty_config_t?
     private(set) var configVersion = 0
-    @ObservationIgnored private let runtimeEvents: any GhosttyRuntimeEventHandling = GhosttyRuntimeEventAdapter()
-    @ObservationIgnored private let muxyConfig: MuxyConfig
+    @ObservationIgnored
+    private let runtimeEvents: any GhosttyRuntimeEventHandling = GhosttyRuntimeEventAdapter()
+    @ObservationIgnored
+    private let muxyConfig: MuxyConfig
 
     private init(muxyConfig: MuxyConfig = .shared) {
         self.muxyConfig = muxyConfig

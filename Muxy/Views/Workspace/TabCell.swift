@@ -25,12 +25,18 @@ struct TabCell: View {
     let onTogglePin: () -> Void
     let onSetCustomTitle: (String?) -> Void
     let onSetColorID: (String?) -> Void
-    @State private var hovered = false
-    @State private var isRenaming = false
-    @State private var renameText = ""
-    @State private var showColorPicker = false
-    @State private var measuredWidth: CGFloat = TabCell.maxWidth
-    @FocusState private var renameFieldFocused: Bool
+    @State
+    private var hovered = false
+    @State
+    private var isRenaming = false
+    @State
+    private var renameText = ""
+    @State
+    private var showColorPicker = false
+    @State
+    private var measuredWidth: CGFloat = TabCell.maxWidth
+    @FocusState
+    private var renameFieldFocused: Bool
 
     private var titleHidden: Bool {
         measuredWidth < Self.titleHideThreshold

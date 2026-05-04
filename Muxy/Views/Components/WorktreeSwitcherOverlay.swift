@@ -66,7 +66,8 @@ private struct WorktreeSwitcherRow: View {
     let item: WorktreeSwitcherItem
     let isHighlighted: Bool
     let isActive: Bool
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         HStack(spacing: 10) {

@@ -10,9 +10,12 @@ enum ThemePickerMode {
 
 struct ThemePicker: View {
     var mode: ThemePickerMode = .currentAppearance
-    @Environment(ThemeService.self) private var themeService
-    @State private var themes: [ThemePreview] = []
-    @State private var currentTheme: String?
+    @Environment(ThemeService.self)
+    private var themeService
+    @State
+    private var themes: [ThemePreview] = []
+    @State
+    private var currentTheme: String?
 
     var body: some View {
         SearchableListPicker(
@@ -62,7 +65,8 @@ private struct ThemeRow: View {
     let theme: ThemePreview
     let isActive: Bool
     let isHighlighted: Bool
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {

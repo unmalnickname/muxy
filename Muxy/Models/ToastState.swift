@@ -7,7 +7,8 @@ final class ToastState {
 
     var message: String?
 
-    @ObservationIgnored private var dismissTask: Task<Void, Never>?
+    @ObservationIgnored
+    private var dismissTask: Task<Void, Never>?
 
     private init() {}
 

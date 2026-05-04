@@ -6,9 +6,12 @@ struct LogoCropperSheet: View {
     let onConfirm: (NSImage) -> Void
     let onCancel: () -> Void
 
-    @State private var scale: CGFloat = 1.0
-    @State private var offset: CGSize = .zero
-    @State private var lastOffset: CGSize = .zero
+    @State
+    private var scale: CGFloat = 1.0
+    @State
+    private var offset: CGSize = .zero
+    @State
+    private var lastOffset: CGSize = .zero
 
     private let cropSize: CGFloat = 200
     private let outputSize: CGFloat = 128

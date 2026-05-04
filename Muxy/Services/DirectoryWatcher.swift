@@ -27,4 +27,3 @@ final class DirectoryWatcher: @unchecked Sendable {
         source.cancel()
     }
 }
-

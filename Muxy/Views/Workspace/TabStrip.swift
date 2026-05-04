@@ -36,8 +36,10 @@ struct PaneTabStrip: View {
     let onSetCustomTitle: (UUID, String?) -> Void
     let onSetColorID: (UUID, String?) -> Void
     let onReorderTab: (IndexSet, Int) -> Void
-    @Environment(TabDragCoordinator.self) private var dragCoordinator
-    @State private var dragState = TabDragState()
+    @Environment(TabDragCoordinator.self)
+    private var dragCoordinator
+    @State
+    private var dragState = TabDragState()
 
     static func snapshots(from tabs: [TerminalTab]) -> [TabSnapshot] {
         tabs.map { tab in

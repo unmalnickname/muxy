@@ -1,14 +1,22 @@
 import SwiftUI
 
 struct AppearanceSettingsView: View {
-    @State private var themeService = ThemeService.shared
-    @State private var showLightThemePicker = false
-    @State private var showDarkThemePicker = false
-    @State private var currentLightTheme: String?
-    @State private var currentDarkTheme: String?
-    @AppStorage("muxy.vcsDisplayMode") private var vcsDisplayMode = VCSDisplayMode.attached.rawValue
-    @AppStorage(SidebarCollapsedStyle.storageKey) private var sidebarCollapsedStyle = SidebarCollapsedStyle.defaultValue.rawValue
-    @AppStorage(SidebarExpandedStyle.storageKey) private var sidebarExpandedStyle = SidebarExpandedStyle.defaultValue.rawValue
+    @State
+    private var themeService = ThemeService.shared
+    @State
+    private var showLightThemePicker = false
+    @State
+    private var showDarkThemePicker = false
+    @State
+    private var currentLightTheme: String?
+    @State
+    private var currentDarkTheme: String?
+    @AppStorage("muxy.vcsDisplayMode")
+    private var vcsDisplayMode = VCSDisplayMode.attached.rawValue
+    @AppStorage(SidebarCollapsedStyle.storageKey)
+    private var sidebarCollapsedStyle = SidebarCollapsedStyle.defaultValue.rawValue
+    @AppStorage(SidebarExpandedStyle.storageKey)
+    private var sidebarExpandedStyle = SidebarExpandedStyle.defaultValue.rawValue
 
     var body: some View {
         SettingsContainer {

@@ -1,10 +1,12 @@
 import SwiftUI
 
 struct RenamePopover: View {
-    @Binding var text: String
+    @Binding
+    var text: String
     let onCommit: () -> Void
     let onCancel: () -> Void
-    @FocusState private var isFocused: Bool
+    @FocusState
+    private var isFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {

@@ -25,7 +25,8 @@ struct CreatePRForm: View {
     ) -> Void
     let onCancel: () -> Void
 
-    @State private var didLoadRemoteBranches = false
+    @State
+    private var didLoadRemoteBranches = false
 
     private var availableBaseBranches: [String] {
         if !context.remoteBranches.isEmpty {
@@ -37,17 +38,28 @@ struct CreatePRForm: View {
         return context.localBranches
     }
 
-    @State private var baseBranch: String = ""
-    @State private var title: String = ""
-    @State private var bodyText: String = ""
-    @State private var newBranchName: String = ""
-    @State private var userEditedBranchName = false
-    @State private var includeAll = true
-    @State private var draft = false
-    @State private var didApplyDefaults = false
-    @State private var initialCurrentBranch: String?
-    @State private var advanced = false
-    @FocusState private var titleFocused: Bool
+    @State
+    private var baseBranch: String = ""
+    @State
+    private var title: String = ""
+    @State
+    private var bodyText: String = ""
+    @State
+    private var newBranchName: String = ""
+    @State
+    private var userEditedBranchName = false
+    @State
+    private var includeAll = true
+    @State
+    private var draft = false
+    @State
+    private var didApplyDefaults = false
+    @State
+    private var initialCurrentBranch: String?
+    @State
+    private var advanced = false
+    @FocusState
+    private var titleFocused: Bool
 
     private var currentBranchSnapshot: String {
         initialCurrentBranch ?? context.currentBranch
@@ -408,7 +420,8 @@ struct CreatePRForm: View {
 }
 
 private struct ThemedTextField: View {
-    @Binding var text: String
+    @Binding
+    var text: String
     let placeholder: String
     var monospaced: Bool = false
     var onSubmit: (() -> Void)?

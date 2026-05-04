@@ -30,7 +30,8 @@ struct PopoverPicker<Item: Identifiable, RowContent: View>: View {
     let footerActions: [PopoverFooterAction]
     let fixedSize: Bool
     let onSelect: (Item) -> Void
-    @ViewBuilder let row: (Item, Bool) -> RowContent
+    @ViewBuilder
+    let row: (Item, Bool) -> RowContent
 
     init(
         items: [Item],

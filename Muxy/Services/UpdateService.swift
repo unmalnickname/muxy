@@ -42,9 +42,12 @@ enum UpdateChannel: String, CaseIterable, Identifiable {
 final class UpdateService: NSObject {
     static let shared = UpdateService()
 
-    @ObservationIgnored private let controller: SPUStandardUpdaterController
-    @ObservationIgnored private var cancellables = Set<AnyCancellable>()
-    @ObservationIgnored private let feedDelegate: FeedDelegate
+    @ObservationIgnored
+    private let controller: SPUStandardUpdaterController
+    @ObservationIgnored
+    private var cancellables = Set<AnyCancellable>()
+    @ObservationIgnored
+    private let feedDelegate: FeedDelegate
 
     private(set) var canCheckForUpdates = false
     private(set) var availableUpdateVersion: String?

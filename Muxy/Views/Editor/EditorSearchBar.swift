@@ -1,14 +1,16 @@
 import SwiftUI
 
 struct EditorSearchBar: View {
-    @Bindable var state: EditorTabState
+    @Bindable
+    var state: EditorTabState
     let onNext: () -> Void
     let onPrevious: () -> Void
     let onReplace: () -> Void
     let onReplaceAll: () -> Void
     let onClose: () -> Void
 
-    @FocusState private var isFieldFocused: Bool
+    @FocusState
+    private var isFieldFocused: Bool
 
     private var displayText: String {
         guard !state.searchNeedle.isEmpty else { return "" }
@@ -169,7 +171,8 @@ private struct EditorSearchButtonStyle: ButtonStyle {
 }
 
 private struct EditorSearchTextButtonStyle: ButtonStyle {
-    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.isEnabled)
+    private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -188,7 +191,8 @@ private struct EditorSearchTextButtonStyle: ButtonStyle {
 
 private struct EditorSearchOptionToggle: View {
     let label: String
-    @Binding var isOn: Bool
+    @Binding
+    var isOn: Bool
     let help: String
 
     var body: some View {

@@ -5,10 +5,14 @@ import SwiftUI
 struct MuxyApp: App {
     nonisolated static let launchDate = Date()
 
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @State private var appState: AppState
-    @State private var projectStore: ProjectStore
-    @State private var worktreeStore: WorktreeStore
+    @NSApplicationDelegateAdaptor(AppDelegate.self)
+    var appDelegate
+    @State
+    private var appState: AppState
+    @State
+    private var projectStore: ProjectStore
+    @State
+    private var worktreeStore: WorktreeStore
     private let updateService = UpdateService.shared
 
     init() {

@@ -2,7 +2,8 @@ import AppKit
 import SwiftUI
 
 struct MuxyCommands: Commands {
-    @ObservedObject private var ideService = IDEIntegrationService.shared
+    @ObservedObject
+    private var ideService = IDEIntegrationService.shared
 
     let appState: AppState
     let projectStore: ProjectStore

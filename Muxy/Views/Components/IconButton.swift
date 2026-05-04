@@ -7,7 +7,8 @@ struct IconButton: View {
     var hoverColor: Color = MuxyTheme.fg
     let accessibilityLabel: String
     let action: () -> Void
-    @State private var hovered = false
+    @State
+    private var hovered = false
 
     var body: some View {
         Button(action: action) {
