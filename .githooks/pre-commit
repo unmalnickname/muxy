@@ -44,6 +44,58 @@ run_step() {
 echo "=== Pre-commit: Verification Gate ==="
 write_status "hook" "Pre-commit Hook" "started"
 
+# 0. Pre-work enforcement
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# Check we're not on main/master/develop
+if [[ "$BRANCH" == "main" || "$BRANCH" == "master" || "$BRANCH" == "develop" ]]; then
+    echo ""
+    echo "  ⛔ Commit on $BRANCH is blocked."
+    echo "     Create a feature branch first:"
+    echo "       git checkout -b {type}/{agent}/{description}"
+    echo ""
+    echo "     Examples:"
+    echo "       feature/opencode/add-auth"
+    echo "       fix/claude-code/login-crash"
+    echo ""
+    exit 1
+fi
+
+# Check branch follows convention
+if ! echo "$BRANCH" | grep -qE "^(feature|fix|refactor|chore|docs|test|hotfix)/[a-z0-9._-]+/.+"; then
+    echo ""
+    echo "  ⛔ Branch name doesn't follow convention:"
+    echo "     $BRANCH"
+    echo ""
+    echo "     Expected: {type}/{agent}/{description}"
+    echo "     Example:  feature/opencode/add-auth"
+    echo ""
+    exit 1
+fi
+
+# Check .muxy/task-context.json exists
+if [ ! -f ".muxy/task-context.json" ]; then
+    echo ""
+    echo "  ⚠️  No task context set."
+    echo "     Set one from Muxy's Health Panel, or create the file:"
+    echo '     echo '"'"'{"taskType":"feature","taskDescription":"...","recommendedSkills":[]}'"'"' > .muxy/task-context.json'
+    echo ""
+    echo "     Without context, the agent won't know what to optimize for."
+fi
+
+# Check Sentrux baseline freshness
+if [ -f ".sentrux/baseline.json" ]; then
+    BASELINE_AGE=$(($(date +%s) - $(stat -f "%m" ".sentrux/baseline.json" 2>/dev/null || stat -c "%Y" ".sentrux/baseline.json" 2>/dev/null || echo 0)))
+    if [ "$BASELINE_AGE" -gt 604800 ] 2>/dev/null; then  # 7 days
+        echo ""
+        echo "  ⚠️  Sentrux baseline is stale (over 7 days old)."
+        echo "     Refresh it: sentrux gate --save ."
+        echo ""
+    fi
+fi
+
+echo ""
+
 # 1. Detect running agent
 AGENT="unknown"
 if [ -n "$OPENCODE_ACTIVE" ]; then AGENT="opencode"
