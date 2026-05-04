@@ -1,3 +1,6 @@
+name: agent-chore
+description: Archon workflow for agent-chore tasks.
+
 # Agent Workflow: Chore / Maintenance Pipeline
 # Dependency updates, tooling, CI config changes, docs.
 
@@ -58,3 +61,4 @@ nodes:
       - What changed and why
       - Verification results
       Tag with "chore" label.
+

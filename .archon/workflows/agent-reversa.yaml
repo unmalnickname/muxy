@@ -1,3 +1,6 @@
+name: agent-reversa
+description: Archon workflow for agent-reversa tasks.
+
 # Agent Workflow: Reversa Codebase Analysis
 # Runs Reversa's agent team to analyze the codebase and generate
 # executable specifications. Run AFTER significant code changes
@@ -55,3 +58,4 @@ nodes:
       - Any critical gaps the user should validate
       
       Output a concise summary the user can reference when planning features.
+

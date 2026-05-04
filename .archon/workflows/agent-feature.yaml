@@ -1,6 +1,9 @@
-# Agent Workflow: Feature Development Pipeline
-# Run by any AI agent (opencode, claude-code, hermes, pi)
-# Handles: feature idea → review → merge
+name: agent-feature
+description: |
+  Full feature development pipeline: plan → implement → verify → review → PR.
+  Use when: You want to implement a new feature from scratch with full quality gates.
+  Run by: opencode (preferred), claude-code, hermes, pi
+  NOT for: Bug fixes (use agent-fix), quick changes, documentation.
 
 nodes:
   - id: plan
@@ -32,6 +35,7 @@ nodes:
         After each change, verify with project tools (lint, compile, test).
         Only move to the next task when current task is verified.
       until: ALL_TASKS_COMPLETE
+      max_iterations: 20
       fresh_context: true
 
   - id: quality-gate
@@ -90,11 +94,13 @@ nodes:
   - id: approval
     depends_on: [cross-agent-review]
     loop:
+      gate_message: "Feature complete. Review and approve the changes."
       prompt: >
         Present the changes for human review.
         Include: summary, files changed, test results, quality score.
         Wait for approval.
       until: APPROVED
+      max_iterations: 10
       interactive: true
 
   - id: create-merged-pr
@@ -108,3 +114,4 @@ nodes:
          - Review findings
       3. Merge the PR (squash merge)
       4. Delete the remote branch
+

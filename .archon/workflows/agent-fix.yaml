@@ -1,5 +1,5 @@
-# Agent Workflow: Bug Fix Pipeline
-# Leaner than feature — focused on minimal, targeted fixes.
+name: agent-fix
+description: Bug fix pipeline — diagnose → fix → verify → PR. Use for targeted fixes, not new features.
 
 nodes:
   - id: diagnose
@@ -51,15 +51,17 @@ nodes:
 
   - id: approval
     depends_on: [verify]
-    prompt: >
-      Present the fix for human review:
-      - Root cause
-      - Change (before/after)
-      - Test results
-      - Quality impact
-      Wait for approval before proceeding.
     loop:
+      gate_message: "Review the fix and approve or request changes."
+      prompt: >
+        Present the fix for human review:
+        - Root cause
+        - Change (before/after)
+        - Test results
+        - Quality impact
+        Wait for approval before proceeding.
       until: APPROVED
+      max_iterations: 10
       interactive: true
 
   - id: pr
@@ -67,3 +69,4 @@ nodes:
     prompt: >
       Push branch, create PR targeting develop,
       attach diagnosis and test results.
+

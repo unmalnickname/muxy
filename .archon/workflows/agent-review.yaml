@@ -1,3 +1,6 @@
+name: agent-review
+description: Archon workflow for agent-review tasks.
+
 # Agent Workflow: Cross-Agent Code Review
 # One agent reviews another agent's PR before human review.
 
@@ -47,6 +50,7 @@ nodes:
         Fix any critical issues found in the review.
         Verify each fix doesn't break existing tests.
       until: NO_CRITICAL_ISSUES
+      max_iterations: 10
       fresh_context: true
 
   - id: final-report
@@ -54,3 +58,4 @@ nodes:
     prompt: >
       Output final review report marked for human reviewer.
       List what was auto-fixed and what needs human judgment.
+

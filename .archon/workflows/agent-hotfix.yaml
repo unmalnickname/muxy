@@ -1,3 +1,6 @@
+name: agent-hotfix
+description: Archon workflow for agent-hotfix tasks.
+
 # Agent Workflow: Hotfix Pipeline
 # Fast-track fix that goes directly to master (bypasses develop).
 # MUST be backported to develop after merge.
@@ -70,6 +73,7 @@ nodes:
   - id: approval
     depends_on: [sentrux-gate]
     loop:
+      gate_message: "HOTFIX approval needed. Review the changes and approve or reject."
       prompt: >
         HOTFIX approval needed:
         - Impact: {impact}
@@ -79,6 +83,7 @@ nodes:
         - Rollback: {rollback_plan}
         Approve to deploy to production.
       until: APPROVED
+      max_iterations: 10
       interactive: true
 
   - id: deploy-to-master
@@ -89,3 +94,4 @@ nodes:
       3. Merge PR (squash merge) — deploy to production
       4. AFTER merge, create a backport PR from master to develop
       5. Tag branch as resolved: git tag hotfix-{date}
+
