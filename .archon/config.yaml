@@ -1,40 +1,16 @@
-assistant: claude
+assistant: pi
 assistants:
-  claude:
-    model: sonnet
-  codex:
-    model: gpt-5.3-codex
   pi:
-    model: anthropic/claude-sonnet-4-5
+    model: deepseek/deepseek-chat
 
 defaults:
   loadDefaultCommands: true
   loadDefaultWorkflows: true
 
-mcp:
-  servers:
-    - id: graphify
-      name: Graphify Knowledge Graph
-      command: python3
-      args:
-        - "{{ARCHON_PROJECT_ROOT}}/mcp-servers/graphify-mcp.py"
-      description: "Query codebase knowledge graph"
-      alwaysAllow: ["graphify_scan", "graphify_query"]
-    - id: archon
-      name: Archon Workflow Engine
-      command: python3
-      args:
-        - "{{ARCHON_PROJECT_ROOT}}/mcp-servers/archon-mcp.py"
-      description: "List and run Archon workflows"
-      alwaysAllow: ["archon_list_workflows", "archon_workflow_status"]
-
 quality:
   sentrux:
     enabled: true
     failOnDegrade: true
-  graphify:
-    enabled: true
-    autoUpdate: true
 
 git:
   branchFormat: "{type}/{agent}/{description}"
