@@ -73,6 +73,17 @@ struct PaneTabStrip: View {
                     NotificationCenter.default.post(name: .toggleHealth, object: nil)
                 }
                 .help("Project Health")
+                Button {
+                    NotificationCenter.default.post(name: .togglePipeline, object: nil)
+                } label: {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                        .font(.system(size: 12))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                        .frame(width: 24, height: 24)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Pipeline")
                 if isWindowTitleBar {
                     OpenInIDEControl(
                         projectPath: openInIDEProjectPath,

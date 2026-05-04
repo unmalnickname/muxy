@@ -80,3 +80,13 @@ The xcframework is built via GitHub Actions on the [muxy-app/ghostty](https://gi
 
 - Review the PRs/Code against the purpose of the PR/Issue/Asked. If you find unrelated issues to the PR during the review, Report them in a separate section.
 - Apply review recommendations only after user's confirmation.
+
+## Stack-Specific Rules (auto-detected)
+
+This project is a **Swift** project on **macOS**.
+- Run `scripts/checks.sh --fix` after every task (if it exists), otherwise run `swiftformat --lint . && swiftlint --strict`
+- Minimum deployment target: macOS 14
+- Use Swift 6.0 language features where appropriate
+- All dependencies via Swift Package Manager (SPM)
+- No commenting allowed in the codebase
+- Follow MVVM patterns for SwiftUI views

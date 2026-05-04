@@ -37,8 +37,15 @@ struct ProjectRow: View {
         String(project.name.prefix(1)).uppercased()
     }
 
+    @Environment(AttentionState.self) private var attentionState
+
     var body: some View {
         projectIcon
+            .pulsingGlow(
+                isActive: attentionState.hasAlert && isActive,
+                color: attentionState.alertColor ?? .clear,
+                duration: attentionState.pulseDuration
+            )
             .help(project.name)
             .contentShape(RoundedRectangle(cornerRadius: 8))
             .accessibilityElement(children: .combine)
@@ -78,6 +85,8 @@ struct ProjectRow: View {
                     if worktrees.count > 1 {
                         Button("Switch Worktree…") { showWorktreePopover = true }
                     }
+                    Divider()
+                    Button("Open in GitUp") { GitUpHelper.openRepository(at: project.path) }
                 }
                 Divider()
                 Button("Remove Project", role: .destructive, action: onRemove)

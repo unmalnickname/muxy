@@ -9,7 +9,9 @@ struct SidebarFooter: View {
     @State private var showThemePicker = false
     @State private var showNotifications = false
     @State private var showAIUsagePopover = false
+    @State private var testGlowIndex = 0
     private let usageService = AIUsageService.shared
+    @Environment(AttentionState.self) private var attentionState
 
     private var usageDisplayMode: AIUsageDisplayMode {
         AIUsageDisplayMode(rawValue: usageDisplayModeRaw) ?? AIUsageSettingsStore.defaultUsageDisplayMode
@@ -48,6 +50,11 @@ struct SidebarFooter: View {
         .onChange(of: usageEnabled) { _, enabled in
             if !enabled {
                 showAIUsagePopover = false
+            }
+        }
+        .onChange(of: attentionState.agentCompletionDate) { _, newDate in
+            if newDate == nil, testGlowIndex == 1 {
+                testGlowIndex = 0
             }
         }
     }
@@ -122,6 +129,7 @@ struct SidebarFooter: View {
             IconButton(symbol: "paintpalette", accessibilityLabel: "Theme Picker") { showThemePicker.toggle() }
                 .help("Theme Picker (\(KeyBindingStore.shared.combo(for: .toggleThemePicker).displayString))")
                 .popover(isPresented: $showThemePicker) { ThemePicker() }
+            testGlowButton
             IconButton(symbol: sidebarToggleIcon, accessibilityLabel: sidebarToggleLabel) { postToggleSidebar() }
                 .help("\(sidebarToggleLabel) (\(KeyBindingStore.shared.combo(for: .toggleSidebar).displayString))")
         }
@@ -146,9 +154,43 @@ struct SidebarFooter: View {
             IconButton(symbol: "paintpalette", accessibilityLabel: "Theme Picker") { showThemePicker.toggle() }
                 .help("Theme Picker (\(KeyBindingStore.shared.combo(for: .toggleThemePicker).displayString))")
                 .popover(isPresented: $showThemePicker) { ThemePicker() }
+            testGlowButton
         }
         .padding(.horizontal, 10)
         .padding(.bottom, 8)
+    }
+
+    private var testGlowButton: some View {
+        let icon = switch testGlowIndex {
+        case 1: "sparkles"
+        case 2: "moon.stars"
+        default: "sparkles"
+        }
+        let tint = switch testGlowIndex {
+        case 1: Color(red: 0, green: 0.8, blue: 0.8)
+        case 2: Color.orange
+        default: MuxyTheme.fgMuted
+        }
+        return IconButton(symbol: icon, color: testGlowIndex == 0 ? MuxyTheme.fgMuted : tint, accessibilityLabel: "Test Glow") {
+            cycleTestGlow()
+        }
+        .help("Test Glow")
+    }
+
+    private func cycleTestGlow() {
+        switch testGlowIndex {
+        case 0:
+            testGlowIndex = 1
+            attentionState.agentCompleted()
+        case 1:
+            testGlowIndex = 2
+            attentionState.setIdle(true)
+        case 2:
+            testGlowIndex = 0
+            attentionState.setIdle(false)
+        default:
+            testGlowIndex = 0
+        }
     }
 
     private func refreshUsage() {

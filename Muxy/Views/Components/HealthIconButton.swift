@@ -7,7 +7,7 @@ struct HealthIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "heart.circle.fill")
-                .font(.system(size: 14))
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(hovered ? MuxyTheme.fg : MuxyTheme.fgMuted)
                 .frame(width: 24, height: 24)
                 .contentShape(Rectangle())

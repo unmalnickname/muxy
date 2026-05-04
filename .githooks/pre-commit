@@ -1,14 +1,48 @@
 #!/bin/bash
 # Agent Workflow: Pre-commit hook
 # Runs before every commit — fast verification gates only.
-# Long-running checks go in pre-push.
+# Reports status to .muxy/hook-status.json for Muxy pipeline panel.
 
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+mkdir -p .muxy
+
+write_status() {
+    local id="$1"; local name="$2"; local status="$3"; local dur="${4:-None}"
+    python3 "$SCRIPT_DIR/pipeline-status.py" \
+        ".muxy/hook-status.json" ".muxy/pipeline-history.json" \
+        "pre-commit" "$id" "$name" "$status" "$dur" "$TIMESTAMP"
+}
+
+run_step() {
+    local id="$1"; local name="$2"; shift 2
+    write_status "$id" "$name" "started"
+    local start_time
+    start_time=$(date +%s.%N 2>/dev/null || date +%s)
+    if "$@" 2>/dev/null; then
+        local end_time
+        end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local dur
+        dur=$(awk "BEGIN { printf \"%.2f\", $end_time - $start_time }" 2>/dev/null || echo 0)
+        write_status "$id" "$name" "passed" "$dur"
+        return 0
+    else
+        local end_time
+        end_time=$(date +%s.%N 2>/dev/null || date +%s)
+        local dur
+        dur=$(awk "BEGIN { printf \"%.2f\", $end_time - $start_time }" 2>/dev/null || echo 0)
+        write_status "$id" "$name" "failed" "$dur"
+        return 1
+    fi
+}
+
 echo "=== Pre-commit: Verification Gate ==="
+write_status "hook" "Pre-commit Hook" "started"
 
 # 1. Detect running agent
 AGENT="unknown"
@@ -23,89 +57,82 @@ echo "[agent] $AGENT"
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 if [ -z "$STAGED" ]; then
     echo "[skip] no staged files"
+    write_status "hook" "Pre-commit Hook" "skipped"
     exit 0
 fi
 
 # 3. Language-detected verification
-#    Runs lint/format/type-check based on project type
-run_checks() {
-    if [ -f "package.json" ]; then
-        echo "[check] Node/JS project detected"
-        if command -v bun &>/dev/null; then
-            [ -f "eslint.config.mjs" ] && bun run lint --quiet 2>/dev/null
-            [ -f "tsconfig.json" ] && bun run type-check 2>/dev/null
-        elif command -v npm &>/dev/null; then
-            [ -f "eslint.config.mjs" ] && npx eslint --quiet $STAGED 2>/dev/null
-        fi
-    fi
+FAILED=0
 
-    if [ -f "Cargo.toml" ]; then
-        echo "[check] Rust project detected"
-        cargo fmt --check 2>/dev/null
-        cargo check 2>/dev/null
+if [ -f "package.json" ]; then
+    if command -v bun &>/dev/null; then
+        [ -f "eslint.config.mjs" ] && run_step "lint" "Lint (bun)" bun run lint --quiet || FAILED=1
+        [ -f "tsconfig.json" ] && run_step "typecheck" "Type Check" bun run type-check || FAILED=1
+    elif command -v npm &>/dev/null; then
+        [ -f "eslint.config.mjs" ] && run_step "lint" "Lint (npm)" npx eslint --quiet $STAGED || FAILED=1
     fi
+fi
 
-    if [ -f "pubspec.yaml" ]; then
-        echo "[check] Flutter/Dart project detected"
-        dart format --set-exit-if-changed $STAGED 2>/dev/null
+if [ -f "Cargo.toml" ]; then
+    run_step "fmt" "Cargo Format" cargo fmt --check || FAILED=1
+    run_step "check" "Cargo Check" cargo check || FAILED=1
+fi
+
+if [ -f "pubspec.yaml" ]; then
+    run_step "dartfmt" "Dart Format" dart format --set-exit-if-changed $STAGED || FAILED=1
+fi
+
+if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
+    if command -v ruff &>/dev/null; then
+        run_step "ruff" "Ruff Check" ruff check $STAGED || FAILED=1
+        run_step "rufffmt" "Ruff Format" ruff format --check $STAGED || FAILED=1
     fi
-
-    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-        echo "[check] Python project detected"
-        if command -v ruff &>/dev/null; then
-            ruff check $STAGED 2>/dev/null
-            ruff format --check $STAGED 2>/dev/null
-        fi
-        if command -v mypy &>/dev/null; then
-            mypy $STAGED 2>/dev/null
-        fi
+    if command -v mypy &>/dev/null; then
+        run_step "mypy" "Mypy" mypy $STAGED || FAILED=1
     fi
+fi
 
-    # Xcode / Swift
-    if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
-        echo "[check] Xcode/Swift project detected"
-        if command -v swift &>/dev/null; then
-            swift format lint $STAGED 2>/dev/null || true
-        fi
+if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
+    if command -v swiftformat &>/dev/null; then
+        run_step "swiftfmt" "SwiftFormat" swiftformat --lint . || {
+            echo "[FAIL] swiftformat issues found. Run: swiftformat ."
+            FAILED=1
+        }
     fi
-}
-run_checks
+    if command -v swiftlint &>/dev/null; then
+        run_step "swiftlint" "SwiftLint" swiftlint --strict . || {
+            echo "[FAIL] swiftlint issues found."
+            FAILED=1
+        }
+    fi
+    if [ -f "scripts/checks.sh" ]; then
+        run_step "checks" "Project Checks" scripts/checks.sh || {
+            echo "[FAIL] scripts/checks.sh failed."
+            FAILED=1
+        }
+    fi
+fi
 
-# 4. Secret scan (Gitleaks) — BLOCKS if secrets found
+# 4. Secret scan
 if command -v gitleaks &>/dev/null; then
-    echo "[gitleaks] scanning staged files for secrets..."
-    gitleaks protect --staged -v 2>/dev/null || {
-        echo "[FAIL] Secrets detected in staged files!"
-        echo "       Run: gitleaks protect --staged -v"
-        exit 1
-    }
-elif command -v docker &>/dev/null && docker info &>/dev/null; then
-    echo "[gitleaks] scanning via docker..."
-    docker run --rm -v "$(pwd):/repo" \
-      ghcr.io/gitleaks/gitleaks protect \
-      --source /repo --staged -v 2>/dev/null || {
-        echo "[FAIL] Secrets detected in staged files!"
-        exit 1
-    }
-else
-    echo "[gitleaks] not installed — skipping (install: brew install gitleaks)"
-fi
-
-# 5. UI structure tests (fast: no browser, parses HTML/CSS/JS)
-if ls tests/test_ui_structure.py 2>/dev/null; then
-    echo "[ui-test] running structure tests..."
-    python3 -m pytest tests/test_ui_structure.py -q 2>/dev/null || {
-        echo "[FAIL] UI structure tests failed!"
-        echo "       Run: python3 -m pytest tests/test_ui_structure.py -v"
-        exit 1
+    run_step "gitleaks" "Gitleaks" gitleaks protect --staged -v || {
+        echo "[FAIL] Secrets detected!"
+        FAILED=1
     }
 fi
 
-# 6. Sentrux quality gate (fast: staged files only)
+# 5. Sentrux
 if command -v sentrux &>/dev/null; then
-    echo "[sentrux] quality gate (staged)..."
-    # Compare against baseline; warn if degraded
-    sentrux gate . 2>/dev/null || echo "[sentrux] WARNING: quality degraded"
+    run_step "sentrux" "Sentrux" sentrux gate . || {
+        echo "[sentrux] WARNING: quality degraded"
+    }
 fi
 
+if [ "$FAILED" -eq 1 ]; then
+    write_status "hook" "Pre-commit Hook" "failed"
+    echo "=== Pre-commit FAILED ==="
+    exit 1
+fi
+
+write_status "hook" "Pre-commit Hook" "passed"
 echo "=== Pre-commit Passed ==="

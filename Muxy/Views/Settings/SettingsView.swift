@@ -17,8 +17,10 @@ struct SettingsView: View {
                 .tabItem { Label("Mobile", systemImage: "iphone") }
             AIUsageSettingsView()
                 .tabItem { Label("AI Usage", systemImage: "chart.bar") }
+            AttentionSettingsView()
+                .tabItem { Label("Attention", systemImage: "sparkles") }
         }
-        .frame(width: 500, height: 500)
+        .frame(width: 620, height: 500)
         .resetsSettingsFocusOnOutsideClick()
     }
 }

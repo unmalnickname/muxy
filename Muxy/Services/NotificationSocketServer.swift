@@ -9,7 +9,17 @@ final class NotificationSocketServer: @unchecked Sendable {
     private var serverFD: Int32 = -1
     private var acceptSource: DispatchSourceRead?
     private let queue = DispatchQueue(label: "app.muxy.notificationSocket")
-    var openProjectHandler: (@Sendable (String) -> Void)?
+    private var pendingOpenProjectPaths: [String] = []
+
+    var openProjectHandler: (@Sendable (String) -> Void)? {
+        didSet {
+            let pending = pendingOpenProjectPaths
+            pendingOpenProjectPaths.removeAll()
+            for path in pending {
+                openProjectHandler?(path)
+            }
+        }
+    }
 
     static var socketPath: String {
         MuxyFileStorage.appSupportDirectory()
@@ -45,7 +55,7 @@ final class NotificationSocketServer: @unchecked Sendable {
         addr.sun_family = sa_family_t(AF_UNIX)
         withUnsafeMutablePointer(to: &addr.sun_path) { ptr in
             let bound = ptr.withMemoryRebound(to: CChar.self, capacity: 104) { $0 }
-            _ = path.withCString { strncpy(bound, $0, 103) }
+            _ = path.withCString { strlcpy(bound, $0, 104) }
         }
 
         let bindResult = withUnsafePointer(to: &addr) { ptr in
@@ -104,11 +114,11 @@ final class NotificationSocketServer: @unchecked Sendable {
         while true {
             let bytesRead = read(fd, &buffer, buffer.count)
             if bytesRead <= 0 { break }
-            data.append(contentsOf: buffer[0 ..< bytesRead])
-            if data.count > Self.maxMessageSize {
+            if data.count + bytesRead > Self.maxMessageSize {
                 logger.warning("Client exceeded max message size (\(Self.maxMessageSize) bytes), dropping")
                 return
             }
+            data.append(contentsOf: buffer[0 ..< bytesRead])
         }
 
         guard !data.isEmpty else { return }
@@ -132,13 +142,17 @@ final class NotificationSocketServer: @unchecked Sendable {
                 return
             }
             logger.info("Received open-project request via socket")
-            openProjectHandler?(path)
+            if let handler = openProjectHandler {
+                handler(path)
+            } else {
+                pendingOpenProjectPaths.append(path)
+            }
             return
         }
 
-        let parts = message.split(separator: "|", maxSplits: 3).map(String.init)
+        let parts = message.split(separator: "|", maxSplits: 4).map(String.init)
         guard parts.count >= 3 else {
-            logger.warning("Invalid message on notification socket: expected type|paneID|title|body")
+            logger.warning("Invalid message on notification socket: expected type|paneID|title|body|flags")
             return
         }
 
@@ -147,15 +161,20 @@ final class NotificationSocketServer: @unchecked Sendable {
         let rawTitle = parts[2]
         let title = rawTitle.isEmpty ? "Task completed!" : rawTitle
         let body = parts.count > 3 ? parts[3] : ""
+        let flags = parts.count > 4 ? parts[4] : ""
 
         DispatchQueue.main.async { [weak self] in
-            self?.dispatchNotification(type: type, title: title, body: body, paneIDString: paneIDString)
+            self?.dispatchNotification(type: type, title: title, body: body, paneIDString: paneIDString, flags: flags)
         }
     }
 
     @MainActor
-    private func dispatchNotification(type: String, title: String, body: String, paneIDString: String?) {
+    private func dispatchNotification(type: String, title: String, body: String, paneIDString: String?, flags: String = "") {
         guard let appState = NotificationStore.shared.appState else { return }
+
+        if flags.contains("agent") {
+            AttentionState.shared.agentCompleted()
+        }
 
         let source = AIProviderRegistry.shared.notificationSource(for: type)
 

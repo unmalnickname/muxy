@@ -12,7 +12,8 @@ send_notification() {
     local type="$1"
     local title="$2"
     local body="$3"
-    printf '%s|%s|%s|%s' "$type" "$MUXY_PANE_ID" "$title" "$body" \
+    local flags="${4:-}"
+    printf '%s|%s|%s|%s|%s' "$type" "$MUXY_PANE_ID" "$title" "$body" "$flags" \
         | nc -U "$MUXY_SOCKET_PATH" 2>/dev/null || true
 }
 
@@ -28,10 +29,10 @@ extract_last_message() {
 
 case "$event" in
     notification)
-        send_notification "claude_hook" "Claude Code" "Needs attention"
+        send_notification "claude_hook" "Claude Code" "Needs attention" "agent"
         ;;
     stop)
         body=$(extract_last_message)
-        send_notification "claude_hook" "Claude Code" "$body"
+        send_notification "claude_hook" "Claude Code" "$body" "agent"
         ;;
 esac

@@ -21,47 +21,24 @@ max_god_file_percent = 20
 # Enforce modularity boundaries
 no_god_files = true
 
-# [layers] — define architectural layers (lower order = foundation)
+# STACK-LAYERS:BEGIN — auto-replaced by setup.sh on install
+
 [[layers]]
-name = "core"
-paths = ["src/core/*", "lib/core/*", "packages/core/*"]
+name = "muxy"
+paths = ["Muxy/**/*.swift"]
 order = 0
 
 [[layers]]
-name = "domain"
-paths = ["src/domain/*", "lib/domain/*"]
+name = "muxyserver"
+paths = ["MuxyServer/**/*.swift"]
 order = 1
 
 [[layers]]
-name = "application"
-paths = ["src/app/*", "lib/app/*", "packages/app/*"]
+name = "muxyshared"
+paths = ["MuxyShared/**/*.swift"]
 order = 2
 
-[[layers]]
-name = "ui"
-paths = ["src/ui/*", "lib/ui/*", "packages/web/*", "packages/ui/*"]
-order = 3
-
-[[layers]]
-name = "infrastructure"
-paths = ["src/infra/*", "lib/infra/*", "deploy/*"]
-order = 4
-
-# Language-specific overrides
-[[layers]]
-name = "android"
-paths = ["app/src/**/*.kt", "app/src/**/*.java"]
-order = 2
-
-[[layers]]
-name = "ios"
-paths = ["ios/**/*.swift", "macos/**/*.swift"]
-order = 2
-
-[[layers]]
-name = "flutter"
-paths = ["lib/**/*.dart"]
-order = 2
+# Auto-detected: 3 source directories
 
 # [boundaries] — enforce dependency direction: lower layers must not depend on higher layers
 [[boundaries]]

@@ -174,6 +174,10 @@ final class FileTreeCommands {
         }
     }
 
+    func refresh() {
+        state.refresh()
+    }
+
     func copyAbsolutePath(_ path: String) {
         let pb = NSPasteboard.general
         pb.clearContents()

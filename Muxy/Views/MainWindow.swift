@@ -28,6 +28,8 @@ struct MainWindow: View {
     @State private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
     @State private var healthPanelVisible = false
     @State private var healthState = ProjectHealthState()
+    @State private var pipelinePanelVisible = false
+    @State private var pipelineState = PipelineState()
     @State private var showQuickOpen = false
     @State private var showWorktreeSwitcher = false
     @State private var isFullScreen = false
@@ -74,7 +76,9 @@ struct MainWindow: View {
                 fileTreePanelWidth: $fileTreePanelWidth,
                 fileTreeStates: fileTreeStates,
                 healthPanelVisible: $healthPanelVisible,
-                healthState: healthState
+                healthState: healthState,
+                pipelinePanelVisible: $pipelinePanelVisible,
+                pipelineState: pipelineState
             )
         }
         .environment(\.overlayActive, showQuickOpen || showWorktreeSwitcher)
@@ -160,15 +164,12 @@ struct MainWindow: View {
             isFullScreen = notification.userInfo?["isFullScreen"] as? Bool ?? false
         }
         .background(WindowOpenReceiver(openWindow: openWindow))
-        .onReceive(NotificationCenter.default.publisher(for: .toggleAttachedVCS)) { _ in
-            toggleAttachedVCSPanel()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleFileTree)) { _ in
-            toggleFileTreePanel()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .toggleHealth)) { _ in
-            toggleHealthPanel()
-        }
+        .sheetObservations(
+            toggleAttachedVCSPanel: toggleAttachedVCSPanel,
+            toggleFileTreePanel: toggleFileTreePanel,
+            toggleHealthPanel: toggleHealthPanel,
+            togglePipelinePanel: togglePipelinePanel
+        )
         .onChange(of: vcsPruneSignature) {
             pruneVCSStates()
             pruneFileTreeStates()
@@ -593,12 +594,15 @@ struct MainWindow: View {
         if isShowing {
             vcsPanelVisible = false
             fileTreePanelVisible = false
+            pipelinePanelVisible = false
             healthState.refresh(projectPath: activeWorktreePath(for: project))
         }
     }
 
     private func toggleFileTreePanel() {
-        guard let project = activeProject else {
+        guard let project = activeProject,
+              let key = appState.activeWorktreeKey(for: project.id)
+        else {
             if fileTreePanelVisible {
                 fileTreePanelVisible = false
                 NotificationCenter.default.post(name: .refocusActiveTerminal, object: nil)
@@ -612,8 +616,27 @@ struct MainWindow: View {
         if isShowing {
             vcsPanelVisible = false
             healthPanelVisible = false
+            pipelinePanelVisible = false
         } else {
             NotificationCenter.default.post(name: .refocusActiveTerminal, object: nil)
+        }
+    }
+
+    private func togglePipelinePanel() {
+        guard let project = activeProject else {
+            pipelinePanelVisible = false
+            return
+        }
+        let isShowing = !pipelinePanelVisible
+        pipelinePanelVisible = isShowing
+        if isShowing {
+            vcsPanelVisible = false
+            healthPanelVisible = false
+            fileTreePanelVisible = false
+            let path = activeWorktreePath(for: project)
+            pipelineState.startPolling(projectPath: path)
+        } else {
+            pipelineState.stopPolling()
         }
     }
 
@@ -797,6 +820,29 @@ struct MainWindow: View {
     }
 }
 
+extension View {
+    func sheetObservations(
+        toggleAttachedVCSPanel: @escaping () -> Void,
+        toggleFileTreePanel: @escaping () -> Void,
+        toggleHealthPanel: @escaping () -> Void,
+        togglePipelinePanel: @escaping () -> Void
+    ) -> some View {
+        self
+            .onReceive(NotificationCenter.default.publisher(for: .toggleAttachedVCS)) { _ in
+                toggleAttachedVCSPanel()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleFileTree)) { _ in
+                toggleFileTreePanel()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .toggleHealth)) { _ in
+                toggleHealthPanel()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .togglePipeline)) { _ in
+                togglePipelinePanel()
+            }
+    }
+}
+
 private struct MainContentArea: View {
     let appState: AppState
     let projectStore: ProjectStore
@@ -812,103 +858,145 @@ private struct MainContentArea: View {
     let fileTreeStates: [WorktreeKey: FileTreeState]
     @Binding var healthPanelVisible: Bool
     let healthState: ProjectHealthState
+    @Binding var pipelinePanelVisible: Bool
+    let pipelineState: PipelineState
 
     var body: some View {
         HStack(spacing: 0) {
+            sidebarView
+            workspaceArea
+            sidePanels
+        }
+    }
+
+    private var sidebarView: some View {
+        HStack(spacing: 0) {
+            Sidebar()
+            if !SidebarLayout.isHidden(expanded: sidebarExpanded, collapsedStyle: sidebarCollapsedStyle) {
+                Rectangle().fill(MuxyTheme.border).frame(width: 1)
+                    .accessibilityHidden(true)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .background(MuxyTheme.bg)
+    }
+
+    private var workspaceArea: some View {
+        ZStack {
+            MuxyTheme.bg
+            if let project = activeProject,
+               appState.workspaceRoot(for: project.id) == nil,
+               let worktree = resolvedActiveWorktree(for: project)
+            {
+                EmptyProjectPlaceholder(project: project) {
+                    appState.selectWorktree(projectID: project.id, worktree: worktree)
+                }
+            } else if let project = activeProjectWithWorkspace,
+                      let activeKey = appState.activeWorktreeKey(for: project.id)
+            {
+                ForEach(mountedWorktreeKeys(for: project), id: \.self) { key in
+                    TerminalArea(
+                        project: project,
+                        worktreeKey: key,
+                        isActiveProject: key == activeKey
+                    )
+                    .opacity(key == activeKey ? 1 : 0)
+                    .allowsHitTesting(key == activeKey)
+                    .zIndex(key == activeKey ? 1 : 0)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var sidePanels: some View {
+        if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
             HStack(spacing: 0) {
-                Sidebar()
-                if !SidebarLayout.isHidden(expanded: sidebarExpanded, collapsedStyle: sidebarCollapsedStyle) {
-                    Rectangle().fill(MuxyTheme.border).frame(width: 1)
-                        .accessibilityHidden(true)
+                sidePanelResizeHandle { delta in
+                    vcsPanelWidth = max(200, min(800, vcsPanelWidth - delta))
                 }
+                VCSTabView(state: state, focused: false, onFocus: {})
+                    .frame(width: vcsPanelWidth)
             }
-            .fixedSize(horizontal: true, vertical: false)
-            .background(MuxyTheme.bg)
-
-            ZStack {
-                MuxyTheme.bg
-                if let project = activeProject,
-                   appState.workspaceRoot(for: project.id) == nil,
-                   let worktree = resolvedActiveWorktree(for: project)
-                {
-                    EmptyProjectPlaceholder(project: project) {
-                        appState.selectWorktree(projectID: project.id, worktree: worktree)
-                    }
-                } else if projectsWithWorkspaces.isEmpty {
-                    WelcomeView()
-                } else if let project = activeProjectWithWorkspace,
-                          let activeKey = appState.activeWorktreeKey(for: project.id)
-                {
-                    ForEach(mountedWorktreeKeys(for: project), id: \.self) { key in
-                        TerminalArea(
-                            project: project,
-                            worktreeKey: key,
-                            isActiveProject: key == activeKey
-                        )
-                        .opacity(key == activeKey ? 1 : 0)
-                        .allowsHitTesting(key == activeKey)
-                        .zIndex(key == activeKey ? 1 : 0)
-                    }
+        } else if fileTreePanelVisible, let treeState = activeFileTreeState {
+            HStack(spacing: 0) {
+                sidePanelResizeHandle { delta in
+                    let next = fileTreePanelWidth - Double(delta)
+                    fileTreePanelWidth = max(180.0, min(600.0, next))
                 }
+                FileTreeView(
+                    state: treeState,
+                    onOpenFile: { filePath in
+                        guard let projectID = appState.activeProjectID else { return }
+                        appState.openFile(filePath, projectID: projectID, preserveFocus: true)
+                    },
+                    onOpenTerminal: { directory in
+                        guard let projectID = appState.activeProjectID else { return }
+                        appState.dispatch(.createTabInDirectory(
+                            projectID: projectID, areaID: nil, directory: directory
+                        ))
+                    },
+                    onFileMoved: { oldPath, newPath in
+                        appState.handleFileMoved(from: oldPath, to: newPath)
+                    }
+                )
+                .id(treeState.rootPath)
+                .frame(width: CGFloat(fileTreePanelWidth))
             }
+        } else if healthPanelVisible, let project = activeProject {
+            healthPanelContent(project: project)
+        } else if pipelinePanelVisible, let project = activeProject {
+            pipelinePanelContent(project: project)
+        }
+    }
 
-            if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { delta in
-                        vcsPanelWidth = max(200, min(800, vcsPanelWidth - delta))
-                    }
-                    VCSTabView(state: state, focused: false, onFocus: {})
-                        .frame(width: vcsPanelWidth)
-                }
-            } else if fileTreePanelVisible, let treeState = activeFileTreeState {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { delta in
-                        let next = fileTreePanelWidth - Double(delta)
-                        fileTreePanelWidth = max(180.0, min(600.0, next))
-                    }
-                    FileTreeView(
-                        state: treeState,
-                        onOpenFile: { filePath in
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.openFile(filePath, projectID: projectID, preserveFocus: true)
-                        },
-                        onOpenTerminal: { directory in
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.dispatch(.createTabInDirectory(
-                                projectID: projectID,
-                                areaID: nil,
-                                directory: directory
-                            ))
-                        },
-                        onFileMoved: { oldPath, newPath in
-                            appState.handleFileMoved(from: oldPath, to: newPath)
-                        }
-                    )
-                    .id(treeState.rootPath)
-                    .frame(width: CGFloat(fileTreePanelWidth))
-                }
-            } else if healthPanelVisible, let project = activeProject {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { _ in
-                        healthPanelVisible = false
-                    }
-                    ProjectHealthPanel(
-                        state: healthState,
-                        projectPath: activeProjectPath(for: project),
-                        projectName: project.name,
-                        onRefresh: {
-                            healthState.refresh(projectPath: activeProjectPath(for: project))
-                        },
-                        onOpenFile: { relativePath in
-                            healthPanelVisible = false
-                            let basePath = activeProjectPath(for: project)
-                            let fullPath = basePath.hasSuffix("/") ? basePath + relativePath : basePath + "/" + relativePath
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.openFile(fullPath, projectID: projectID)
-                        }
-                    )
-                    .frame(width: 320)
-                }
+    private func healthPanelContent(project: Project) -> some View {
+        HStack(spacing: 0) {
+            sidePanelResizeHandle { _ in healthPanelVisible = false }
+            ProjectHealthPanel(
+                state: healthState,
+                projectPath: activeProjectPath(for: project),
+                projectName: project.name,
+                onRefresh: { healthState.refresh(projectPath: activeProjectPath(for: project)) },
+                onOpenFile: { relativePath in
+                    healthPanelVisible = false
+                    let basePath = activeProjectPath(for: project)
+                    let fullPath = basePath.hasSuffix("/") ? basePath + relativePath : basePath + "/" + relativePath
+                    guard let projectID = appState.activeProjectID else { return }
+                    appState.openFile(fullPath, projectID: projectID)
+                },
+                onOpenProfile: { absolutePath in
+                    healthPanelVisible = false
+                    guard let projectID = appState.activeProjectID else { return }
+                    appState.openFile(absolutePath, projectID: projectID)
+                },
+                onSelectAgent: { agentName in
+                    healthState.selectAgent(agentName, projectPath: activeProjectPath(for: project))
+                },
+                onClearAgent: { healthState.clearAgent(projectPath: activeProjectPath(for: project)) }
+            )
+            .frame(width: 320)
+            .onChange(of: appState.activeProjectID) { _, _ in
+                guard let project = activeProject else { return }
+                healthState.selectedAgent = nil
+                healthState.refresh(projectPath: activeProjectPath(for: project))
+            }
+        }
+    }
+
+    private func pipelinePanelContent(project: Project) -> some View {
+        HStack(spacing: 0) {
+            sidePanelResizeHandle { _ in pipelinePanelVisible = false }
+            PipelinePanel(
+                state: pipelineState,
+                projectPath: activeProjectPath(for: project),
+                projectName: project.name,
+                onRefresh: { pipelineState.refresh(projectPath: activeProjectPath(for: project)) }
+            )
+            .frame(width: 320)
+            .onChange(of: appState.activeProjectID) { _, _ in
+                guard let project = activeProject else { return }
+                pipelineState.startPolling(projectPath: activeProjectPath(for: project))
             }
         }
     }

@@ -27,6 +27,7 @@ struct ExpandedProjectRow: View {
     @State private var worktreesExpanded = false
     @State private var isRefreshingWorktrees = false
     @State private var showColorPicker = false
+    @Environment(AttentionState.self) private var attentionState
 
     private var isActive: Bool {
         appState.activeProjectID == project.id
@@ -82,6 +83,8 @@ struct ExpandedProjectRow: View {
                 Divider()
                 Button("Refresh Worktrees") { Task { await refreshWorktrees() } }
                 Button("New Worktree…") { showCreateWorktreeSheet = true }
+                Divider()
+                Button("Open in GitUp") { GitUpHelper.openRepository(at: project.path) }
             }
             Divider()
             Button("Remove Project", role: .destructive, action: onRemove)
@@ -148,6 +151,11 @@ struct ExpandedProjectRow: View {
             }
         }
         .padding(4)
+        .pulsingGlow(
+            isActive: attentionState.hasAlert && isActive,
+            color: attentionState.alertColor ?? .clear,
+            duration: attentionState.pulseDuration
+        )
         .background(headerBackground, in: RoundedRectangle(cornerRadius: 8))
         .contentShape(RoundedRectangle(cornerRadius: 8))
         .accessibilityElement(children: .combine)

@@ -42,11 +42,13 @@ struct MuxyApp: App {
                 .environment(GhosttyService.shared)
                 .environment(MuxyConfig.shared)
                 .environment(ThemeService.shared)
+                .environment(AttentionState.shared)
                 .preferredColorScheme(MuxyTheme.colorScheme)
                 .onAppear {
                     NotificationStore.shared.appState = appState
                     NotificationStore.shared.worktreeStore = worktreeStore
                     NotificationStore.shared.markAllAsRead()
+                    AttentionState.shared.reloadSettings()
                     appDelegate.onTerminate = { [appState] in
                         appState.saveWorkspaces()
                     }
@@ -225,6 +227,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationSocketServer.shared.start()
         AIProviderRegistry.shared.installAll()
         _ = AIUsageSettingsStore.isUsageEnabled()
+        IdleDetectionService.shared.start()
 
         consumeLaunchArguments()
     }

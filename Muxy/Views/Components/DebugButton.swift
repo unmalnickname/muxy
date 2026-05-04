@@ -12,7 +12,7 @@ struct DebugButton: View {
             Image(systemName: "ladybug.fill")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(hovered ? MuxyTheme.warning : MuxyTheme.warning.opacity(0.75))
-                .frame(width: 22, height: 22)
+                .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
                 .background(hovered ? MuxyTheme.hover : .clear, in: RoundedRectangle(cornerRadius: 5))
         }

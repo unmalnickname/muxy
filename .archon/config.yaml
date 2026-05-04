@@ -58,5 +58,5 @@ git:
     - claude-code
     - hermes
     - pi
-  baseBranch: develop
+  baseBranch: main
   releaseBranch: master

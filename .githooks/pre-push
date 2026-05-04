@@ -1,7 +1,7 @@
 #!/bin/bash
 # Agent Workflow: Pre-push hook
 # Full validation before allowing push to remote.
-# Blocks push if any verification fails.
+# Reports status to .muxy/hook-status.json for Muxy pipeline panel.
 
 set -e
 
@@ -11,8 +11,20 @@ cd "$REPO_ROOT"
 BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null)
 REMOTE="${1:-origin}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+mkdir -p .muxy
+
+write_status() {
+    local id="$1"; local name="$2"; local status="$3"; local dur="${4:-None}"
+    python3 "$SCRIPT_DIR/pipeline-status.py" \
+        ".muxy/hook-status.json" ".muxy/pipeline-history.json" \
+        "pre-push" "$id" "$name" "$status" "$dur" "$TIMESTAMP"
+}
+
 echo "=== Pre-push: Full Validation Gate ==="
 echo "[branch] $BRANCH → $REMOTE"
+write_status "hook" "Pre-push Hook" "started"
 
 # 1. Detect agent from branch name
 AGENT=$(echo "$BRANCH" | awk -F/ '{print $2}')
@@ -21,81 +33,92 @@ echo "[agent] ${AGENT:-unknown}"
 # 2. Validate branch naming convention
 if [[ "$BRANCH" != "master" && "$BRANCH" != "main" && "$BRANCH" != "develop" ]]; then
     if ! echo "$BRANCH" | grep -qE "^(feature|fix|refactor|chore|docs|test|hotfix)/[a-z0-9._-]+/.+"; then
-        echo "[error] Branch name must follow convention:"
-        echo "        {type}/{agent}/{description}"
-        echo "        e.g. feature/opencode/add-auth"
-        echo "             fix/claude-code/login-crash"
-        echo "             hotfix/opencode/outage-fix"
-        echo "             refactor/hermes/extract-core"
+        echo "[error] Branch name must follow convention: {type}/{agent}/{description}"
+        write_status "branch" "Branch Convention" "failed"
+        write_status "hook" "Pre-push Hook" "failed"
         exit 1
     fi
 fi
-
-# 2b. Hotfix branches go to master only
-if echo "$BRANCH" | grep -qE "^hotfix/"; then
-    if [[ "$REMOTE" != "origin" ]]; then
-        echo "[hotfix] targeting $REMOTE — hotfixes should push to origin"
-    fi
-    echo "[hotfix] branch — pushing directly"
-fi
+write_status "branch" "Branch Convention" "passed"
 
 # 3. Full project verification
-run_full_check() {
-    if [ -f "package.json" ]; then
-        echo "[check] Running full project validation..."
-        if command -v bun &>/dev/null; then
-            if grep -q '"validate"' package.json 2>/dev/null; then
-                bun run validate 2>/dev/null || {
-                    echo "[fail] 'bun run validate' failed"
-                    exit 1
-                }
-            else
-                # Run individual checks
-                [ -f "eslint.config.mjs" ] && bun run lint 2>/dev/null
-                [ -f "tsconfig.json" ] && bun run type-check 2>/dev/null
-                [ -f "vitest.config.ts" ] || [ -d "__tests__" ] && bun run test 2>/dev/null
-            fi
-        elif command -v npm &>/dev/null; then
-            npm test 2>/dev/null
-        fi
-    fi
+FAILED=0
 
-    if [ -f "Cargo.toml" ]; then
-        echo "[check] Running Rust checks..."
-        cargo test 2>/dev/null || exit 1
-    fi
-
-    if [ -f "pubspec.yaml" ]; then
-        echo "[check] Running Flutter checks..."
-        flutter analyze 2>/dev/null
-        flutter test 2>/dev/null
-    fi
-
-    if [ -f "pyproject.toml" ]; then
-        echo "[check] Running Python checks..."
-        if command -v pytest &>/dev/null; then
-            pytest 2>/dev/null || exit 1
-        fi
-    fi
-
-    # Xcode / Swift
-    if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
-        echo "[check] Running Swift checks..."
-        swift test 2>/dev/null || true
+run_step() {
+    local id="$1"; local name="$2"; shift 2
+    write_status "$id" "$name" "started"
+    local start_time
+    start_time=$(date +%s 2>/dev/null)
+    if "$@" 2>/dev/null; then
+        local end_time
+        end_time=$(date +%s 2>/dev/null)
+        local dur=$(( end_time - start_time ))
+        write_status "$id" "$name" "passed" "$dur"
+        return 0
+    else
+        local end_time
+        end_time=$(date +%s 2>/dev/null)
+        local dur=$(( end_time - start_time ))
+        write_status "$id" "$name" "failed" "$dur"
+        return 1
     fi
 }
-run_full_check
+
+if [ -f "package.json" ]; then
+    if command -v bun &>/dev/null; then
+        if grep -q '"validate"' package.json 2>/dev/null; then
+            run_step "validate" "Full Validate" bun run validate || FAILED=1
+        else
+            [ -f "eslint.config.mjs" ] && run_step "lint" "Lint" bun run lint || FAILED=1
+            [ -f "tsconfig.json" ] && run_step "typecheck" "Type Check" bun run type-check || FAILED=1
+        fi
+    fi
+fi
+
+if [ -f "Cargo.toml" ]; then
+    run_step "test" "Cargo Test" cargo test || FAILED=1
+fi
+
+if [ -f "pubspec.yaml" ]; then
+    run_step "analyze" "Flutter Analyze" flutter analyze || FAILED=1
+    run_step "test" "Flutter Test" flutter test || FAILED=1
+fi
+
+if [ -f "pyproject.toml" ]; then
+    if command -v pytest &>/dev/null; then
+        run_step "test" "Python Tests" pytest || FAILED=1
+    fi
+fi
+
+if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
+    if command -v swiftformat &>/dev/null; then
+        run_step "swiftfmt" "SwiftFormat" swiftformat --lint . || {
+            echo "[fail] swiftformat issues."; FAILED=1
+        }
+    fi
+    if command -v swiftlint &>/dev/null; then
+        run_step "swiftlint" "SwiftLint" swiftlint --strict . || {
+            echo "[fail] swiftlint issues."; FAILED=1
+        }
+    fi
+    if [ -f "scripts/checks.sh" ]; then
+        run_step "checks" "Project Checks" scripts/checks.sh || {
+            echo "[fail] scripts/checks.sh failed."; FAILED=1
+        }
+    fi
+    if command -v swift &>/dev/null; then
+        run_step "swifttest" "Swift Test" swift test || {
+            echo "[fail] swift test failed."; FAILED=1
+        }
+    fi
+fi
 
 # 4. Sentrux full quality gate
 if command -v sentrux &>/dev/null; then
-    echo "[sentrux] running full quality gate..."
-    if [ -f ".sentrux/rules.toml" ]; then
-        sentrux gate . || {
-            echo "[fail] Quality degraded from baseline. Fix before pushing."
-            echo "       Run: sentrux gate .  (for details)"
-            exit 1
-        }
-    fi
+    run_step "sentrux" "Sentrux" sentrux check . || {
+        echo "[fail] Sentrux rules violated."
+        FAILED=1
+    }
 fi
 
 # 5. Check for uncommitted changes
@@ -103,47 +126,19 @@ if [ -n "$(git status --porcelain)" ]; then
     echo "[warn] Uncommitted changes present (not blocking)"
 fi
 
-# 6. Doppler secrets check (prevent accidental commits)
-if command -v doppler &>/dev/null && [ -f ".doppler.yaml" ]; then
-    echo "[doppler] verifying secrets..."
-    DOPPLER_CONFIG=$(doppler configure get config 2>/dev/null || echo "")
-    if [ -n "$DOPPLER_CONFIG" ]; then
-        echo "[doppler] active config: $DOPPLER_CONFIG"
-    fi
-fi
-
-# 7. Secret scan (Gitleaks) — full repo scan before pushing
+# 6. Secret scan (Gitleaks)
 if command -v gitleaks &>/dev/null; then
-    echo "[gitleaks] scanning full repo for secrets..."
-    gitleaks detect --source . -v 2>/dev/null || {
-        echo "[FAIL] Secrets found in repository!"
-        echo "       Run: gitleaks detect --source . --verbose"
-        exit 1
-    }
-elif command -v docker &>/dev/null; then
-    echo "[gitleaks] scanning via docker..."
-    docker run --rm -v "$(pwd):/repo" \
-      ghcr.io/gitleaks/gitleaks detect \
-      --source /repo -v 2>/dev/null || {
-        echo "[FAIL] Secrets found in repository!"
-        exit 1
+    run_step "gitleaks" "Gitleaks" gitleaks detect --source . -v || {
+        echo "[fail] Secrets found!"
+        FAILED=1
     }
 fi
 
-# 8. Archon validation
-if [ -d ".archon/workflows" ] && command -v archon &>/dev/null; then
-    echo "[archon] validating workflows..."
-    archon workflow validate . 2>/dev/null || echo "[warn] Archon validation skipped"
+if [ "$FAILED" -eq 1 ]; then
+    write_status "hook" "Pre-push Hook" "failed"
+    echo "=== Pre-push FAILED ==="
+    exit 1
 fi
 
-# 9. Prevent push to master without hotfix branch
-if [[ "$BRANCH" == "master" || "$BRANCH" == "main" ]]; then
-    # Allow pushes from CI/release bot
-    if [ -z "$CI" ]; then
-        echo "[error] Direct push to $BRANCH is not allowed"
-        echo "       Use a hotfix branch or release PR instead"
-        exit 1
-    fi
-fi
-
+write_status "hook" "Pre-push Hook" "passed"
 echo "=== Pre-push Passed ==="

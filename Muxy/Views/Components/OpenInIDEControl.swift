@@ -32,7 +32,7 @@ struct OpenInIDEControl: View {
                             .foregroundStyle(primaryForeground)
                     }
                 }
-                .frame(width: 22, height: 24)
+                .frame(width: 24, height: 24)
                 .contentShape(Rectangle())
                 .background(hoveredPrimary ? MuxyTheme.hover : .clear, in: RoundedRectangle(cornerRadius: 5))
             }

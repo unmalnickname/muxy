@@ -41,7 +41,8 @@ final class FileTreeState {
     var cutPaths: Set<String> = []
     var dropHighlightPath: String?
 
-    @ObservationIgnored private var watcher: GitDirectoryWatcher?
+    @ObservationIgnored private var rootWatcher: DirectoryWatcher?
+    @ObservationIgnored private var directoryWatchers: [String: DirectoryWatcher] = [:]
     @ObservationIgnored nonisolated(unsafe) private var remoteChangeObserver: NSObjectProtocol?
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var statusTask: Task<Void, Never>?
@@ -49,7 +50,7 @@ final class FileTreeState {
     init(rootPath: String) {
         self.rootPath = rootPath
         observeRepoChanges()
-        installWatcher()
+        installRootWatcher()
     }
 
     deinit {
@@ -89,6 +90,7 @@ final class FileTreeState {
         guard !expanded.contains(normalized) else { return }
         expanded.insert(normalized)
         reloadChildren(of: normalized)
+        startWatching(normalized)
     }
 
     func parentDirectory(of path: String) -> String {
@@ -100,9 +102,11 @@ final class FileTreeState {
         guard entry.isDirectory else { return }
         if expanded.contains(entry.absolutePath) {
             expanded.remove(entry.absolutePath)
+            stopWatching(entry.absolutePath)
         } else {
             expanded.insert(entry.absolutePath)
             reloadChildren(of: entry.absolutePath)
+            startWatching(entry.absolutePath)
         }
     }
 
@@ -221,6 +225,7 @@ final class FileTreeState {
         guard let path = selectedFilePath else { return }
         if let entry = entry(at: path), entry.isDirectory, expanded.contains(path) {
             expanded.remove(path)
+            stopWatching(path)
             return
         }
         let parent = parentDirectory(of: path)
@@ -279,6 +284,7 @@ final class FileTreeState {
             if !expanded.contains(current) {
                 expanded.insert(current)
                 reloadChildren(of: current)
+                startWatching(current)
             }
         }
     }
@@ -332,12 +338,26 @@ final class FileTreeState {
         }
     }
 
-    private func installWatcher() {
-        watcher = GitDirectoryWatcher(directoryPath: rootPath) { [weak self] in
+    private func installRootWatcher() {
+        rootWatcher = DirectoryWatcher(path: rootPath) { [weak self] in
             Task { @MainActor [weak self] in
                 self?.refresh()
             }
         }
+    }
+
+    private func startWatching(_ directoryPath: String) {
+        guard directoryWatchers[directoryPath] == nil else { return }
+        let path = directoryPath
+        directoryWatchers[directoryPath] = DirectoryWatcher(path: directoryPath) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.refreshDirectory(path: path)
+            }
+        }
+    }
+
+    private func stopWatching(_ directoryPath: String) {
+        directoryWatchers.removeValue(forKey: directoryPath)
     }
 
     private func refreshStatuses() {

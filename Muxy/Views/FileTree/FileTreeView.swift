@@ -544,6 +544,8 @@ private struct FileTreeContextMenuContents: View {
     var body: some View {
         Button("New File") { commands.beginNewFile(in: path) }
         Button("New Folder") { commands.beginNewFolder(in: path) }
+        Divider()
+        Button("Refresh") { commands.refresh() }
         if includesTargetActions {
             Divider()
             Button("Rename") { commands.beginRename(path: path) }

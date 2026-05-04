@@ -16,7 +16,7 @@ struct UpdateBadge: View {
             }
             .foregroundStyle(hovered ? MuxyTheme.accent : MuxyTheme.fgMuted)
             .padding(.horizontal, 6)
-            .padding(.vertical, 3)
+            .frame(height: 22)
             .background(
                 RoundedRectangle(cornerRadius: 5)
                     .fill(MuxyTheme.surface)
