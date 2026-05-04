@@ -5,7 +5,7 @@ assistants:
   codex:
     model: gpt-5.3-codex
   pi:
-    model: openai/deepseek-chat
+    model: deepseek/deepseek.r1-v1:0
 
 defaults:
   loadDefaultCommands: true
