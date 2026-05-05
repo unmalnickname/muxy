@@ -17,6 +17,9 @@ struct ProjectHealthPanel: View {
                     qualitySection
                         .padding(.horizontal, 10)
                     sectionSpacer
+                    validationSection
+                        .padding(.horizontal, 10)
+                    sectionSpacer
                     workflowSection
                         .padding(.horizontal, 10)
                     sectionSpacer
@@ -70,6 +73,40 @@ struct ProjectHealthPanel: View {
         }
         .padding(.horizontal, 10)
         .frame(height: 32)
+    }
+
+    private var validationSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader("Workflow Validation")
+            if let passed = state.validationPassed {
+                HStack(spacing: 8) {
+                    Image(systemName: passed ? "checkmark.shield.fill" : "exclamationmark.shield.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(passed ? .green : .red)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(passed ? "All checks passed" : "Issues detected")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(MuxyTheme.fg)
+                        if let detail = state.validationDetail {
+                            Text(detail)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(MuxyTheme.fgDim)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "shield")
+                        .font(.system(size: 14))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                    Text("Not yet validated")
+                        .font(.system(size: 12))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+                .padding(.vertical, 4)
+            }
+        }
     }
 
     private var qualitySection: some View {

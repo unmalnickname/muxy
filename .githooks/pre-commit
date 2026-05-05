@@ -1,8 +1,4 @@
 #!/bin/bash
-# Agent Workflow: Pre-commit hook
-# Runs before every commit — fast verification gates only.
-# Long-running checks go in pre-push.
-
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
@@ -10,102 +6,54 @@ cd "$REPO_ROOT"
 
 echo "=== Pre-commit: Verification Gate ==="
 
-# 1. Detect running agent
+# 1. Detect agent
 AGENT="unknown"
 if [ -n "$OPENCODE_ACTIVE" ]; then AGENT="opencode"
 elif [ -n "$CLAUDE_CODE_ACTIVE" ]; then AGENT="claude-code"
-elif [ -n "$HERMES_ACTIVE" ]; then AGENT="hermes"
-elif [ -n "$PI_AGENT_ACTIVE" ]; then AGENT="pi"
 fi
 echo "[agent] $AGENT"
 
-# 2. Staged files
+# 2. Staged files check
 STAGED=$(git diff --cached --name-only --diff-filter=ACM)
 if [ -z "$STAGED" ]; then
     echo "[skip] no staged files"
     exit 0
 fi
 
-# 3. Language-detected verification
-#    Runs lint/format/type-check based on project type
-run_checks() {
-    if [ -f "package.json" ]; then
-        echo "[check] Node/JS project detected"
-        if command -v bun &>/dev/null; then
-            [ -f "eslint.config.mjs" ] && bun run lint --quiet 2>/dev/null
-            [ -f "tsconfig.json" ] && bun run type-check 2>/dev/null
-        elif command -v npm &>/dev/null; then
-            [ -f "eslint.config.mjs" ] && npx eslint --quiet $STAGED 2>/dev/null
-        fi
-    fi
-
-    if [ -f "Cargo.toml" ]; then
-        echo "[check] Rust project detected"
-        cargo fmt --check 2>/dev/null
-        cargo check 2>/dev/null
-    fi
-
-    if [ -f "pubspec.yaml" ]; then
-        echo "[check] Flutter/Dart project detected"
-        dart format --set-exit-if-changed $STAGED 2>/dev/null
-    fi
-
-    if [ -f "pyproject.toml" ] || [ -f "requirements.txt" ]; then
-        echo "[check] Python project detected"
-        if command -v ruff &>/dev/null; then
-            ruff check $STAGED 2>/dev/null
-            ruff format --check $STAGED 2>/dev/null
-        fi
-        if command -v mypy &>/dev/null; then
-            mypy $STAGED 2>/dev/null
-        fi
-    fi
-
-    # Xcode / Swift
-    if ls *.xcodeproj *.xcworkspace 2>/dev/null | grep -q .; then
-        echo "[check] Xcode/Swift project detected"
-        if command -v swift &>/dev/null; then
-            swift format lint $STAGED 2>/dev/null || true
-        fi
-    fi
+# 3. Swift checks via project's own script
+echo "[swift] running formatting check..."
+swiftformat --lint . --quiet || {
+    echo "[FAIL] Formatting issues found. Run: swiftformat ."
+    exit 1
 }
-run_checks
 
-# 4. Secret scan (Gitleaks) — BLOCKS if secrets found
+if command -v swiftlint &>/dev/null; then
+    echo "[swift] running lint..."
+    swiftlint lint --strict --quiet || {
+        echo "[FAIL] Linting issues found. Run: swiftlint lint --fix"
+        exit 1
+    }
+fi
+
+echo "[swift] checking build..."
+swift build 2>&1 | tail -5 || {
+    echo "[FAIL] Build failed"
+    exit 1
+}
+
+# 4. Secret scan
 if command -v gitleaks &>/dev/null; then
-    echo "[gitleaks] scanning staged files for secrets..."
-    gitleaks protect --staged -v 2>/dev/null || {
-        echo "[FAIL] Secrets detected in staged files!"
-        echo "       Run: gitleaks protect --staged -v"
-        exit 1
-    }
-elif command -v docker &>/dev/null && docker info &>/dev/null; then
-    echo "[gitleaks] scanning via docker..."
-    docker run --rm -v "$(pwd):/repo" \
-      ghcr.io/gitleaks/gitleaks protect \
-      --source /repo --staged -v 2>/dev/null || {
-        echo "[FAIL] Secrets detected in staged files!"
-        exit 1
-    }
-else
-    echo "[gitleaks] not installed — skipping (install: brew install gitleaks)"
-fi
-
-# 5. UI structure tests (fast: no browser, parses HTML/CSS/JS)
-if ls tests/test_ui_structure.py 2>/dev/null; then
-    echo "[ui-test] running structure tests..."
-    python3 -m pytest tests/test_ui_structure.py -q 2>/dev/null || {
-        echo "[FAIL] UI structure tests failed!"
-        echo "       Run: python3 -m pytest tests/test_ui_structure.py -v"
+    echo "[gitleaks] scanning staged..."
+    gitleaks protect --staged -v 2>&1 || {
+        echo "[FAIL] Secrets detected in staged files"
         exit 1
     }
 fi
 
-# 6. Sentrux quality gate (fast: staged files only)
-if command -v sentrux &>/dev/null; then
-    echo "[sentrux] quality gate (staged)..."
-    # Compare against baseline; warn if degraded
-    sentrux gate . 2>/dev/null || echo "[sentrux] WARNING: quality degraded"
+# 5. Sentrux quality gate
+if command -v sentrux &>/dev/null && [ -f ".sentrux/rules.toml" ]; then
+    echo "[sentrux] quality gate..."
+    sentrux gate . 2>&1 || echo "[sentrux] WARNING: quality score degraded"
 fi
 
 echo "=== Pre-commit Passed ==="

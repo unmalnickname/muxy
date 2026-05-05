@@ -1,83 +1,58 @@
-# Agent Workflow: Sentrux Quality Rules
-# Architectural governance for AI-generated code.
-# Enforced by pre-push hook and CI.
+# Sentrux Quality Rules — Muxy
+# Architectural governance enforced by pre-push hook and CI.
 
 [constraints]
-# Structural quality floor — fail if score drops below threshold
 min_quality_score = 6000
-
-# Maximum allowed dependency cycles (0 = zero tolerance)
 max_cycles = 0
-
-# Maximum allowed coupling (A=low, B=moderate, C=high)
 max_coupling = "B"
-
-# Maximum cyclomatic complexity per function
 max_cc = 25
-
-# Fail if any file exceeds this % of total dependencies
 max_god_file_percent = 20
-
-# Enforce modularity boundaries
 no_god_files = true
 
-# [layers] — define architectural layers (lower order = foundation)
 [[layers]]
-name = "core"
-paths = ["src/core/*", "lib/core/*", "packages/core/*"]
+name = "foundation"
+paths = ["GhosttyKit/*", "MuxyShared/*"]
 order = 0
 
 [[layers]]
-name = "domain"
-paths = ["src/domain/*", "lib/domain/*"]
+name = "server"
+paths = ["MuxyServer/*"]
 order = 1
 
 [[layers]]
-name = "application"
-paths = ["src/app/*", "lib/app/*", "packages/app/*"]
+name = "app"
+paths = ["Muxy/**/*.swift"]
 order = 2
 
 [[layers]]
-name = "ui"
-paths = ["src/ui/*", "lib/ui/*", "packages/web/*", "packages/ui/*"]
+name = "tests"
+paths = ["Tests/**/*.swift"]
 order = 3
 
-[[layers]]
-name = "infrastructure"
-paths = ["src/infra/*", "lib/infra/*", "deploy/*"]
-order = 4
-
-# Language-specific overrides
-[[layers]]
-name = "android"
-paths = ["app/src/**/*.kt", "app/src/**/*.java"]
-order = 2
-
-[[layers]]
-name = "ios"
-paths = ["ios/**/*.swift", "macos/**/*.swift"]
-order = 2
-
-[[layers]]
-name = "flutter"
-paths = ["lib/**/*.dart"]
-order = 2
-
-# [boundaries] — enforce dependency direction: lower layers must not depend on higher layers
 [[boundaries]]
-from = "src/app/*"
-to = "src/core/internal/*"
-reason = "App layer must not depend on core internals"
+from = "MuxyServer/*"
+to = "Muxy/*"
+reason = "Server must not depend on the app"
 
 [[boundaries]]
-from = "src/ui/*"
-to = "src/infra/*"
-reason = "UI must not directly depend on infrastructure"
+from = "MuxyShared/*"
+to = "Muxy/*"
+reason = "Shared library must not depend on the app"
 
 [[boundaries]]
-from = "lib/app/*"
-to = "lib/core/internal/*"
-reason = "Flutter app must not depend on core internals"
+from = "MuxyShared/*"
+to = "MuxyServer/*"
+reason = "Shared library must not depend on the server"
+
+[[boundaries]]
+from = "GhosttyKit/*"
+to = "Muxy/*"
+reason = "Ghostty C wrapper must not depend on Swift app"
+
+[[boundaries]]
+from = "GhosttyKit/*"
+to = "MuxyShared/*"
+reason = "Ghostty C wrapper must not depend on Swift shared lib"
 
 [metrics]
 # Customize metric weights (must sum to 100)

@@ -55,6 +55,8 @@ final class ProjectHealthState {
     var godFileCount: Int = 0
     var testCount: Int = 0
     var testPassed: Int = 0
+    var validationPassed: Bool?
+    var validationDetail: String?
 
     nonisolated(unsafe) private static let dateFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -68,6 +70,29 @@ final class ProjectHealthState {
         refreshCI(projectPath: projectPath)
         refreshPiHistory()
         refreshQuality(projectPath: projectPath)
+        runValidation(projectPath: projectPath)
+    }
+
+    private func runValidation(projectPath: String) {
+        let task = Process()
+        task.launchPath = "/bin/bash"
+        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && scripts/validate-workflow.sh --ci 2>&1"]
+        let out = Pipe()
+        task.standardOutput = out
+        task.standardError = out
+        do {
+            try task.run()
+            task.waitUntilExit()
+            let data = out.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8) ?? ""
+            validationPassed = task.terminationStatus == 0
+            if let resultsLine = output.components(separatedBy: .newlines).last(where: { $0.contains("passed") }) {
+                validationDetail = resultsLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        } catch {
+            validationPassed = nil
+            validationDetail = nil
+        }
     }
 
     private func refreshWorkflowConfigs(projectPath: String) {
@@ -79,14 +104,23 @@ final class ProjectHealthState {
             let action: String?
         }
         let checks = [
+            CheckDef(id: "checks", path: "scripts/checks.sh", desc: "Format, lint, build, test pipeline", action: nil),
+            CheckDef(
+                id: "validate",
+                path: "scripts/validate-workflow.sh",
+                desc: "Workflow tooling self-validation",
+                action: "scripts/validate-workflow.sh --ci"
+            ),
             CheckDef(id: "githooks", path: ".githooks", desc: "Pre-commit lint + pre-push gate", action: nil),
             CheckDef(id: "sentrux", path: ".sentrux", desc: "Architectural quality gates", action: nil),
             CheckDef(id: "archon", path: ".archon", desc: "AI workflow definitions", action: nil),
-            CheckDef(id: "graphify", path: ".graphify", desc: "Knowledge graph tracking", action: "graphify scan . --quiet"),
+            CheckDef(id: "graphify", path: ".graphify", desc: "Knowledge graph tracking", action: "graphify update ."),
             CheckDef(id: "gitleaks", path: ".gitleaks.toml", desc: "Secret scanning", action: nil),
             CheckDef(id: "doppler", path: ".doppler.yaml", desc: "Secrets management", action: "doppler setup"),
         ]
         let clickablePaths: [String: String] = [
+            "scripts/checks.sh": "scripts/checks.sh",
+            "scripts/validate-workflow.sh": "scripts/validate-workflow.sh",
             ".githooks": ".githooks",
             ".sentrux": ".sentrux/rules.toml",
             ".archon": ".archon/config.yaml",
@@ -114,14 +148,15 @@ final class ProjectHealthState {
             let hint: String?
         }
         let tools = [
-            ToolDef(name: "pi", checkCmd: "pi --version 2>&1", hint: "npm install -g @mariozechner/pi-coding-agent"),
+            ToolDef(name: "swiftformat", checkCmd: "swiftformat --version 2>&1", hint: "brew install swiftformat"),
+            ToolDef(name: "swiftlint", checkCmd: "swiftlint version 2>&1", hint: "brew install swiftlint"),
+            ToolDef(name: "gitleaks", checkCmd: "gitleaks version 2>&1", hint: "brew install gitleaks"),
             ToolDef(
                 name: "sentrux",
                 checkCmd: "sentrux --version 2>&1",
                 hint: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh"
             ),
-            ToolDef(name: "swiftlint", checkCmd: "swiftlint version 2>&1", hint: "brew install swiftlint"),
-            ToolDef(name: "swiftformat", checkCmd: "swiftformat --version 2>&1", hint: "brew install swiftformat"),
+            ToolDef(name: "graphify", checkCmd: "graphify --help 2>&1 | head -1", hint: "pip install graphifyy"),
             ToolDef(name: "gh", checkCmd: "gh --version 2>&1 | head -1", hint: "brew install gh"),
         ]
         globalTools = tools.map { tool in
@@ -205,17 +240,14 @@ final class ProjectHealthState {
 
     private func refreshQuality(projectPath: String) {
         let baselinePath = (projectPath as NSString).appendingPathComponent(".sentrux/baseline.json")
-        guard let data = try? Data(contentsOf: URL(fileURLWithPath: baselinePath)),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        else {
-            qualityScore = 0
-            godFileCount = 0
-            return
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: baselinePath)),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        {
+            if let score = json["quality_signal"] as? Double {
+                qualityScore = Int(score * 10000)
+            }
+            godFileCount = json["god_file_count"] as? Int ?? 0
         }
-        if let score = json["quality_signal"] as? Double {
-            qualityScore = Int(score * 10000)
-        }
-        godFileCount = json["god_file_count"] as? Int ?? 0
     }
 
     private func which(_ tool: String) -> String? {

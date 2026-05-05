@@ -1,26 +1,8 @@
 #!/bin/bash
-# Agent Workflow: Post-commit hook
-# Updates Graphify knowledge graph after each commit.
-# Silent — never blocks the commit.
-
 set -e
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
-cd "$REPO_ROOT"
 
-# Update Graphify knowledge graph
-if command -v graphify &>/dev/null; then
-    graphify scan . --quiet 2>/dev/null || true
-elif [ -d ".graphify" ] && [ -f ".graphify/config.yaml" ]; then
-    # Try python-based graphify
-    if [ -d "$HOME/projects/graphify" ]; then
-        cd "$HOME/projects/graphify"
-        uv run graphify scan "$REPO_ROOT" --quiet 2>/dev/null || true
-        cd "$REPO_ROOT"
-    fi
-fi
-
-# Optional: Log commit to Sentrux session
-if command -v sentrux &>/dev/null && [ -f ".sentrux/baseline.json" ]; then
-    sentrux gate . 2>/dev/null || true
+if command -v graphify &>/dev/null && [ -d "$REPO_ROOT/.graphify" ]; then
+    graphify scan "$REPO_ROOT" --quiet 2>/dev/null || true
 fi
