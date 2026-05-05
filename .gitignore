@@ -20,3 +20,4 @@ appcast*.xml
 .plans/
 .muxy/
 /muxy-markdown-remote-image-urlcache
+graphify-out/
