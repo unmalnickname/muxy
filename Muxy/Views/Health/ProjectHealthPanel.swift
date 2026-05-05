@@ -390,20 +390,67 @@ struct ProjectHealthPanel: View {
     }
 
     private func confirmAndFix() {
+        let missingTools = state.globalTools.filter { !$0.installed }
+        let missingConfigs = state.workflowItems.filter { $0.status == .missing }
+
+        var details: [String] = []
+        for tool in missingTools {
+            details.append("Install \(tool.name)")
+        }
+        for item in missingConfigs {
+            details.append("Create \(item.name)")
+        }
+
         let alert = NSAlert()
-        alert.messageText = "Fix All Issues?"
-        alert.informativeText = "This will install missing tools and run setup commands."
+        alert.messageText = "Fix \(details.count) Issues?"
+        alert.informativeText = details.joined(separator: "\n")
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Fix All")
         alert.addButton(withTitle: "Cancel")
         guard let window = NSApp.keyWindow ?? NSApp.mainWindow,
               alert.runModal() == .alertFirstButtonReturn
         else { return }
-        let installs = state.globalTools.filter { !$0.installed }.compactMap(\.installHint)
-        let setups = state.workflowItems.filter { $0.status == .missing }.compactMap(\.action)
-        for cmd in installs + setups {
-            runAction(cmd)
+
+        var results: [String] = []
+        for tool in missingTools {
+            if let hint = tool.installHint {
+                results.append("Installing \(tool.name)... \(runActionWithOutput(hint))")
+            }
         }
-        onRefresh()
+        for item in missingConfigs {
+            if let action = item.action {
+                results.append("Setting up \(item.name)... \(runActionWithOutput(action))")
+            } else {
+                createFile(at: item.relativePath)
+                results.append("Created \(item.name)")
+            }
+        }
+
+        let resultAlert = NSAlert()
+        resultAlert.messageText = "Results"
+        resultAlert.informativeText = results.joined(separator: "\n")
+        resultAlert.addButton(withTitle: "OK")
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            resultAlert.beginSheetModal(for: window) { _ in
+                self.onRefresh()
+            }
+        } else {
+            resultAlert.runModal()
+            onRefresh()
+        }
+    }
+
+    private func runActionWithOutput(_ command: String) -> String {
+        let task = Process()
+        task.launchPath = "/bin/bash"
+        task.arguments = ["-c", command]
+        let out = Pipe()
+        task.standardOutput = out
+        task.standardError = out
+        try? task.run()
+        task.waitUntilExit()
+        let data = out.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return task.terminationStatus == 0 ? "OK" : "Failed: \(output.prefix(100))"
     }
 }
