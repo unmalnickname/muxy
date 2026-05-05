@@ -73,6 +73,10 @@ struct PaneTabStrip: View {
                     NotificationCenter.default.post(name: .toggleHealth, object: nil)
                 }
                 .help("Project Health")
+                PipelineIconButton {
+                    NotificationCenter.default.post(name: .togglePipeline, object: nil)
+                }
+                .help("Pipeline")
                 if isWindowTitleBar {
                     OpenInIDEControl(
                         projectPath: openInIDEProjectPath,
