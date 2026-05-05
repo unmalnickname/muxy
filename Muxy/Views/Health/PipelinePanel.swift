@@ -19,8 +19,18 @@ struct PipelinePanel: View {
                         sectionSpacer
                         workflowStatusBanner(wf)
                             .padding(.horizontal, 10)
+                        if !wf.dependencyViolations.isEmpty {
+                            sectionSpacer
+                            dependencyViolationsSection(wf)
+                                .padding(.horizontal, 10)
+                        }
                         sectionSpacer
                         stepsSection(wf)
+                            .padding(.horizontal, 10)
+                    }
+                    if !state.history.isEmpty {
+                        sectionSpacer
+                        historySection
                             .padding(.horizontal, 10)
                     }
                     sectionSpacer
@@ -92,6 +102,18 @@ struct PipelinePanel: View {
                                 .font(.system(size: 11, weight: isActive ? .semibold : .regular))
                                 .foregroundStyle(isActive ? MuxyTheme.fg : MuxyTheme.fgMuted)
                             Spacer(minLength: 0)
+
+                            let violations = wf.violationCount
+                            if violations > 0 {
+                                Text("\(violations)")
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 2)
+                                    .background(Color.orange)
+                                    .cornerRadius(6)
+                            }
+
                             let followed = wf.steps.count(where: { $0.status == .followed })
                             let total = wf.steps.count
                             Text("\(followed)/\(total)")
@@ -110,27 +132,35 @@ struct PipelinePanel: View {
     @ViewBuilder
     private func workflowStatusBanner(_ wf: WorkflowDef) -> some View {
         let skipped = wf.steps.filter { $0.status == .skipped }
-        let pending = wf.steps.filter { $0.status == .pending }
+        let critical = wf.steps.filter { $0.status == .skipped && $0.severity == .critical }
+        let hasViolations = !wf.dependencyViolations.isEmpty
 
-        if !skipped.isEmpty {
+        if !skipped.isEmpty || hasViolations {
             HStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                Image(systemName: critical.isEmpty ? "exclamationmark.triangle.fill" : "xmark.shield.fill")
                     .font(.system(size: 14))
-                    .foregroundStyle(.orange)
+                    .foregroundStyle(critical.isEmpty ? .orange : .red)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Workflow not fully followed")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(MuxyTheme.fg)
-                    Text("\(skipped.count) step\(skipped.count == 1 ? "" : "s") skipped")
-                        .font(.system(size: 11))
-                        .foregroundStyle(MuxyTheme.fgDim)
+                    HStack(spacing: 6) {
+                        if !skipped.isEmpty {
+                            Text("\(skipped.count) step\(skipped.count == 1 ? "" : "s") skipped")
+                        }
+                        if hasViolations {
+                            Text("\(wf.dependencyViolations.count) dependency violation\(wf.dependencyViolations.count == 1 ? "" : "s")")
+                        }
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(MuxyTheme.fgDim)
                 }
             }
             .padding(10)
-            .background(Color.orange.opacity(0.1))
+            .background((critical.isEmpty ? Color.orange : Color.red).opacity(0.1))
             .cornerRadius(6)
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.orange.opacity(0.3), lineWidth: 1))
-        } else if !pending.isEmpty {
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke((critical.isEmpty ? Color.orange : Color.red).opacity(0.3), lineWidth: 1))
+        } else if wf.steps.contains(where: { $0.status == .pending }) {
             HStack(spacing: 8) {
                 Image(systemName: "clock")
                     .font(.system(size: 14))
@@ -139,7 +169,7 @@ struct PipelinePanel: View {
                     Text("Workflow in progress")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(MuxyTheme.fg)
-                    Text("\(pending.count) step\(pending.count == 1 ? "" : "s") pending")
+                    Text("Some steps still pending")
                         .font(.system(size: 11))
                         .foregroundStyle(MuxyTheme.fgDim)
                 }
@@ -169,6 +199,23 @@ struct PipelinePanel: View {
         }
     }
 
+    private func dependencyViolationsSection(_ wf: WorkflowDef) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionHeader("Dependency Violations")
+            ForEach(wf.dependencyViolations, id: \.self) { violation in
+                HStack(spacing: 6) {
+                    Image(systemName: "link.broken")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                    Text(violation)
+                        .font(.system(size: 10))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+                .padding(.vertical, 2)
+            }
+        }
+    }
+
     private func stepsSection(_ wf: WorkflowDef) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader("Steps")
@@ -180,37 +227,82 @@ struct PipelinePanel: View {
 
     private func stepRow(_ step: PipelineStep) -> some View {
         HStack(spacing: 8) {
-            stepIcon(step.status)
+            stepIcon(step)
             VStack(alignment: .leading, spacing: 1) {
-                Text(step.name)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(step.status == .skipped ? MuxyTheme.fgMuted : MuxyTheme.fg)
+                HStack(spacing: 4) {
+                    severityBadge(step.severity)
+                    Text(step.name)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(step.status == .skipped ? MuxyTheme.fgMuted : MuxyTheme.fg)
+                }
                 if let evidence = step.evidence {
                     Text(evidence)
                         .font(.system(size: 10))
                         .foregroundStyle(MuxyTheme.fgDim)
+                        .lineLimit(3)
                 }
             }
             Spacer(minLength: 0)
+            Text(String(step.orderIndex + 1))
+                .font(.system(size: 9, design: .monospaced))
+                .foregroundStyle(MuxyTheme.fgDim.opacity(0.5))
         }
         .padding(.vertical, 4)
         .opacity(step.status == .skipped ? 0.7 : 1)
     }
 
-    private func stepIcon(_ status: StepStatus) -> some View {
-        switch status {
+    @ViewBuilder
+    private func severityBadge(_ severity: StepSeverity) -> some View {
+        switch severity {
+        case .critical:
+            Image(systemName: "exclamationmark.octagon.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(.red)
+        case .warning:
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 9))
+                .foregroundStyle(.orange)
+        case .info:
+            Color.clear.frame(width: 0, height: 0)
+        }
+    }
+
+    private func stepIcon(_ step: PipelineStep) -> some View {
+        switch step.status {
         case .followed:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 13))
                 .foregroundStyle(.green)
         case .skipped:
-            Image(systemName: "exclamationmark.circle.fill")
+            Image(systemName: step.severity == .critical ? "xmark.circle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 13))
-                .foregroundStyle(.orange)
+                .foregroundStyle(step.severity == .critical ? .red : .orange)
         case .pending:
             Image(systemName: "circle")
                 .font(.system(size: 13))
                 .foregroundStyle(MuxyTheme.fgDim.opacity(0.5))
+        }
+    }
+
+    private var historySection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            sectionHeader("Recent Runs")
+            ForEach(state.history.prefix(5)) { record in
+                HStack(spacing: 6) {
+                    let passed = record.stepResults.allSatisfy { $0.status == "followed" }
+                    Image(systemName: passed ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(passed ? .green : .orange)
+                    Text(record.workflowName)
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(MuxyTheme.fg)
+                    Spacer(minLength: 0)
+                    Text(timeAgo(record.date))
+                        .font(.system(size: 9))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+                .padding(.vertical, 2)
+            }
         }
     }
 

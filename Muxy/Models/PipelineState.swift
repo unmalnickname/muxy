@@ -5,8 +5,12 @@ struct PipelineStep: Identifiable {
     let id: String
     let name: String
     let kind: StepKind
+    let orderIndex: Int
+    let dependsOn: [String]
+    var severity: StepSeverity
     var status: StepStatus
     var evidence: String?
+    var detectedAt: Date?
 }
 
 enum StepKind: String {
@@ -24,6 +28,12 @@ enum StepKind: String {
     case unknown
 }
 
+enum StepSeverity: String {
+    case critical
+    case warning
+    case info
+}
+
 enum StepStatus: String {
     case followed
     case skipped
@@ -35,6 +45,26 @@ struct WorkflowDef: Identifiable {
     let name: String
     let filePath: String
     var steps: [PipelineStep]
+    var dependencyViolations: [String] = []
+
+    var violationCount: Int {
+        steps.count(where: { $0.status == .skipped }) + dependencyViolations.count
+    }
+}
+
+struct PipelineRunRecord: Codable, Identifiable {
+    var id: String { "\(workflowName)-\(date.timeIntervalSince1970)" }
+    let date: Date
+    let workflowName: String
+    let stepResults: [StepResultRecord]
+}
+
+struct StepResultRecord: Codable {
+    let stepID: String
+    let name: String
+    let status: String
+    let severity: String
+    let evidence: String
 }
 
 @Observable
@@ -44,6 +74,7 @@ final class PipelineState {
     var toolValidationPassed: Bool?
     var toolValidationDetail: String?
     var lastRun: Date?
+    var history: [PipelineRunRecord] = []
 
     var activeWorkflow: WorkflowDef? {
         guard let id = activeWorkflowID else { return workflows.first }
@@ -52,7 +83,7 @@ final class PipelineState {
 
     var allFollowed: Bool {
         guard let wf = activeWorkflow else { return false }
-        return wf.steps.allSatisfy { $0.status == .followed }
+        return wf.steps.allSatisfy { $0.status == .followed } && wf.dependencyViolations.isEmpty
     }
 
     var skippedCount: Int {
@@ -60,12 +91,22 @@ final class PipelineState {
         return wf.steps.count(where: { $0.status == .skipped })
     }
 
+    var violationCount: Int {
+        guard let wf = activeWorkflow else { return 0 }
+        return wf.violationCount
+    }
+
     func refresh(projectPath: String) {
         lastRun = Date()
         loadWorkflows(projectPath: projectPath)
         detectStepCompliance(projectPath: projectPath)
+        checkDependencyViolations()
         runToolValidation(projectPath: projectPath)
+        saveHistory(projectPath: projectPath)
+        loadHistory(projectPath: projectPath)
     }
+
+    // MARK: - Workflow Loading
 
     private func loadWorkflows(projectPath: String) {
         let fm = FileManager.default
@@ -84,15 +125,18 @@ final class PipelineState {
                 let name = file.replacingOccurrences(of: ".yaml", with: "").replacingOccurrences(of: "agent-", with: "")
                 let steps: [PipelineStep] = nodes.enumerated().map { idx, node in
                     let id = node["id"] as? String ?? "step-\(idx)"
-                    let prompt = node["prompt"] as? String
-                    let bash = node["bash"] as? String
+                    let dependsOn = node["depends_on"] as? [String] ?? []
                     let kind = StepKind(rawValue: id) ?? .unknown
                     return PipelineStep(
                         id: id,
                         name: id.replacingOccurrences(of: "-", with: " ").capitalized,
                         kind: kind,
+                        orderIndex: idx,
+                        dependsOn: dependsOn,
+                        severity: .info,
                         status: .pending,
-                        evidence: nil
+                        evidence: nil,
+                        detectedAt: nil
                     )
                 }
 
@@ -109,16 +153,7 @@ final class PipelineState {
     }
 
     private func detectActiveWorkflow(projectPath: String) {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && git rev-parse --abbrev-ref HEAD 2>/dev/null"]
-        let out = Pipe()
-        task.standardOutput = out
-        try? task.run()
-        task.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        let branch = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespaces) ?? ""
-
+        let branch = shell("cd '\(projectPath)' 2>/dev/null && git rev-parse --abbrev-ref HEAD 2>/dev/null")
         let type = branch.components(separatedBy: "/").first ?? ""
         for wf in workflows {
             if wf.id.contains(type) || wf.name == type {
@@ -129,41 +164,114 @@ final class PipelineState {
         activeWorkflowID = workflows.first?.id
     }
 
+    // MARK: - Step Compliance
+
     private func detectStepCompliance(projectPath: String) {
         guard var wf = activeWorkflow else { return }
 
         for i in wf.steps.indices {
-            switch wf.steps[i].kind {
+            var step = wf.steps[i]
+            switch step.kind {
             case .hookPreCommit,
                  .plan:
-                wf.steps[i] = detectPreCommit(projectPath: projectPath, step: wf.steps[i])
+                step = detectPreCommit(projectPath: projectPath, step: step)
             case .sentruxBaseline:
-                wf.steps[i] = detectSentruxBaseline(projectPath: projectPath, step: wf.steps[i])
+                step = detectSentruxBaseline(projectPath: projectPath, step: step)
             case .implement:
-                wf.steps[i] = detectImplementation(projectPath: projectPath, step: wf.steps[i])
+                step = detectImplementation(projectPath: projectPath, step: step)
             case .qualityGate:
-                wf.steps[i] = detectQualityGate(projectPath: projectPath, step: wf.steps[i])
+                step = detectQualityGate(projectPath: projectPath, step: step)
             case .graphifyUpdate:
-                wf.steps[i] = detectGraphify(projectPath: projectPath, step: wf.steps[i])
+                step = detectGraphify(projectPath: projectPath, step: step)
             case .test:
-                wf.steps[i] = detectTests(projectPath: projectPath, step: wf.steps[i])
+                step = detectTests(projectPath: projectPath, step: step)
             case .review:
-                wf.steps[i] = detectReview(projectPath: projectPath, step: wf.steps[i])
+                step = detectReview(projectPath: projectPath, step: step)
             case .approval:
-                wf.steps[i] = detectApproval(projectPath: projectPath, step: wf.steps[i])
+                step = detectApproval(projectPath: projectPath, step: step)
             case .pr:
-                wf.steps[i] = detectPR(projectPath: projectPath, step: wf.steps[i])
+                step = detectPR(projectPath: projectPath, step: step)
             case .hookPrePush:
-                wf.steps[i] = detectPrePush(projectPath: projectPath, step: wf.steps[i])
+                step = detectPrePush(projectPath: projectPath, step: step)
             case .unknown:
-                wf.steps[i].status = .pending
+                step.status = .pending
             }
+            step.detectedAt = Date()
+            wf.steps[i] = step
         }
+
+        assignSeverity(&wf)
+        checkStepOrdering(projectPath: projectPath, wf: &wf)
 
         if let idx = workflows.firstIndex(where: { $0.id == wf.id }) {
             workflows[idx] = wf
         }
     }
+
+    private func assignSeverity(_ wf: inout WorkflowDef) {
+        for i in wf.steps.indices {
+            switch wf.steps[i].kind {
+            case .approval,
+                 .pr:
+                wf.steps[i].severity = .critical
+            case .qualityGate,
+                 .hookPreCommit,
+                 .hookPrePush,
+                 .test,
+                 .sentruxBaseline:
+                wf.steps[i].severity = .warning
+            case .plan,
+                 .implement,
+                 .review,
+                 .graphifyUpdate,
+                 .unknown:
+                wf.steps[i].severity = .info
+            }
+        }
+    }
+
+    private func checkStepOrdering(projectPath: String, wf: inout WorkflowDef) {
+        let commits = shell("cd '\(projectPath)' 2>/dev/null && git log --format='%H %ct' -20 2>/dev/null")
+        let commitLines = commits.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        guard commitLines.count >= 2 else { return }
+
+        let timestamps = commitLines.compactMap { line -> TimeInterval? in
+            Double(line.split(separator: " ").last.map(String.init) ?? "")
+        }
+
+        let followedSteps = wf.steps.enumerated().filter { $0.element.status == .followed }
+        for i in 1 ..< followedSteps.count {
+            let prev = followedSteps[i - 1]
+            let curr = followedSteps[i]
+            if prev.offset > curr.offset {
+                wf.steps[curr.offset].severity = .warning
+                if let ev = wf.steps[curr.offset].evidence {
+                    wf.steps[curr.offset].evidence = "\(ev) [ran before \(prev.element.name)]"
+                }
+            }
+        }
+    }
+
+    private func checkDependencyViolations() {
+        guard let wf = activeWorkflow else { return }
+        var violations: [String] = []
+
+        for step in wf.steps where step.status == .followed {
+            for depID in step.dependsOn {
+                if let dep = wf.steps.first(where: { $0.id == depID }),
+                   dep.status != .followed
+                {
+                    violations.append("\(step.name) depends on \(dep.name) but \(dep.name) was \(dep.status.rawValue)")
+                }
+            }
+        }
+
+        if let idx = workflows.firstIndex(where: { $0.id == wf.id }) {
+            workflows[idx].dependencyViolations = violations
+        }
+    }
+
+    // MARK: - Tool Validation
 
     private func runToolValidation(projectPath: String) {
         let task = Process()
@@ -188,15 +296,13 @@ final class PipelineState {
             if let resultsLine = output.components(separatedBy: .newlines)
                 .last(where: { $0.contains("passed") || $0.contains("Results") })
             {
-                let cleaned = resultsLine.replacingOccurrences(
-                    of: "[^a-zA-Z0-9, ]",
-                    with: "",
-                    options: .regularExpression
-                )
+                let cleaned = resultsLine.replacingOccurrences(of: "[^a-zA-Z0-9, ]", with: "", options: .regularExpression)
                 toolValidationDetail = cleaned.trimmingCharacters(in: .whitespaces)
             }
         } catch {}
     }
+
+    // MARK: - Per-Step Detection
 
     private func detectPreCommit(projectPath: String, step: PipelineStep) -> PipelineStep {
         let code = shell("cd '\(projectPath)' 2>/dev/null && git log --format='%B' -1 2>/dev/null | head -5")
@@ -209,10 +315,12 @@ final class PipelineState {
         if code.contains("feature/") || code.contains("fix/") || code.contains("refactor/") {
             if formatPassed, lintPassed {
                 return mark(step, .followed, "Format + lint clean")
+            } else if !formatPassed, !lintPassed {
+                return mark(step, .skipped, "Format and lint issues — pre-commit did not run")
             } else if !formatPassed {
-                return mark(step, .skipped, "Formatting issues found — pre-commit may not have run")
+                return mark(step, .skipped, "swiftformat issues found — pre-commit may not have run")
             } else {
-                return mark(step, .followed, "Pre-commit executed")
+                return mark(step, .followed, "Pre-commit executed (lint warnings)")
             }
         }
         return mark(step, .pending, "No agent commits on this branch")
@@ -223,35 +331,44 @@ final class PipelineState {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: baselinePath),
               let modDate = attrs[.modificationDate] as? Date
         else {
-            return mark(step, .skipped, "No Sentrux baseline found — sentrux gate --save not run")
+            return mark(step, .skipped, "No Sentrux baseline — sentrux gate --save not run")
         }
 
-        let recent = abs(modDate.timeIntervalSinceNow) < 3600
-        if recent {
+        if abs(modDate.timeIntervalSinceNow) < 3600 {
             return mark(step, .followed, "Baseline updated \(timeAgo(modDate))")
         }
-        return mark(step, .followed, "Baseline exists (last update \(timeAgo(modDate)))")
+        let score = readQualityScore(baselinePath: baselinePath)
+        return mark(step, .followed, "Baseline score: \(score) (updated \(timeAgo(modDate)))")
+    }
+
+    private func readQualityScore(baselinePath: String) -> Int {
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: baselinePath)),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let score = json["quality_signal"] as? Double
+        else { return 0 }
+        return Int(score * 10000)
     }
 
     private func detectImplementation(projectPath: String, step: PipelineStep) -> PipelineStep {
-        let count = shell("cd '\(projectPath)' 2>/dev/null && git log --oneline HEAD...HEAD~5 2>/dev/null | wc -l")
-        let trimmed = count.trimmingCharacters(in: .whitespaces)
-        if let commits = Int(trimmed), commits > 0 {
-            return mark(step, .followed, "\(commits) recent commits")
+        let log = shell("cd '\(projectPath)' 2>/dev/null && git log --oneline -5 2>/dev/null")
+        let lines = log.components(separatedBy: .newlines).filter { !$0.isEmpty }
+        if !lines.isEmpty {
+            let snippets = lines.prefix(3).map { String($0.prefix(60)) }.joined(separator: "\n")
+            return mark(step, .followed, "\(lines.count) recent commits:\n\(snippets)")
         }
         let staged = shell("cd '\(projectPath)' 2>/dev/null && git diff --name-only 2>/dev/null | wc -l")
         if let files = Int(staged.trimmingCharacters(in: .whitespaces)), files > 0 {
-            return mark(step, .followed, "\(files) files modified")
+            return mark(step, .followed, "\(files) files modified (uncommitted)")
         }
         return mark(step, .skipped, "No recent code changes detected")
     }
 
     private func detectQualityGate(projectPath: String, step: PipelineStep) -> PipelineStep {
-        let sentruxResult = shell("cd '\(projectPath)' 2>/dev/null && sentrux gate . 2>&1; echo \"EXIT=$?\"")
-        if sentruxResult.contains("degradation") || sentruxResult.contains("No degradation") {
-            return mark(step, .followed, "No structural degradation")
+        let result = shell("cd '\(projectPath)' 2>/dev/null && sentrux gate . 2>&1; echo \"EXIT=$?\"")
+        if result.contains("No degradation") {
+            return mark(step, .followed, "No structural degradation detected")
         }
-        if sentruxResult.contains("EXIT=0") {
+        if result.contains("EXIT=0") {
             return mark(step, .followed, "Quality gate passed")
         }
         return mark(step, .skipped, "sentrux gate not run or failed")
@@ -273,7 +390,10 @@ final class PipelineState {
         if result.contains("EXIT=0") {
             return mark(step, .followed, "Tests executed")
         }
-        return mark(step, .skipped, "Tests not run or failing")
+        if result.contains("failed") {
+            return mark(step, .skipped, "Tests failed or not run")
+        }
+        return mark(step, .pending, "Test status unknown")
     }
 
     private func detectReview(projectPath: String, step: PipelineStep) -> PipelineStep {
@@ -281,7 +401,7 @@ final class PipelineState {
         if let count = Int(commitCount.trimmingCharacters(in: .whitespaces)), count > 1 {
             return mark(step, .followed, "\(count) commits in recent history")
         }
-        return mark(step, .pending, "Not enough data")
+        return mark(step, .pending, "Single commit — no review iteration detected")
     }
 
     private func detectApproval(projectPath: String, step: PipelineStep) -> PipelineStep {
@@ -307,6 +427,49 @@ final class PipelineState {
         }
         return mark(step, .pending, "Branch not pushed yet")
     }
+
+    // MARK: - History
+
+    private func saveHistory(projectPath: String) {
+        guard let wf = activeWorkflow else { return }
+        let record = PipelineRunRecord(
+            date: Date(),
+            workflowName: wf.name,
+            stepResults: wf.steps.map {
+                StepResultRecord(
+                    stepID: $0.id,
+                    name: $0.name,
+                    status: $0.status.rawValue,
+                    severity: $0.severity.rawValue,
+                    evidence: $0.evidence ?? ""
+                )
+            }
+        )
+
+        var all = history
+        all.insert(record, at: 0)
+        if all.count > 20 { all = Array(all.prefix(20)) }
+        history = all
+
+        if let data = try? JSONEncoder().encode(all) {
+            let path = (projectPath as NSString).appendingPathComponent(".muxy/pipeline-history.json")
+            try? FileManager.default.createDirectory(
+                atPath: (path as NSString).deletingLastPathComponent,
+                withIntermediateDirectories: true
+            )
+            try? data.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    private func loadHistory(projectPath: String) {
+        let path = (projectPath as NSString).appendingPathComponent(".muxy/pipeline-history.json")
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+              let records = try? JSONDecoder().decode([PipelineRunRecord].self, from: data)
+        else { return }
+        history = records
+    }
+
+    // MARK: - Helpers
 
     private func mark(_ step: PipelineStep, _ status: StepStatus, _ evidence: String) -> PipelineStep {
         var s = step
