@@ -392,6 +392,29 @@ struct ProjectHealthPanel: View {
     private func confirmAndFix() {
         let missingTools = state.globalTools.filter { !$0.installed }
         let missingConfigs = state.workflowItems.filter { $0.status == .missing }
+        let missingIDs = Set(missingConfigs.map(\.id))
+        let coreMissing = missingIDs.intersection(["githooks", "sentrux", "archon", "graphify"])
+
+        let setupPath = "\(projectPath)/scripts/setup.sh"
+        let templateAvailable = FileManager.default.fileExists(atPath: setupPath)
+
+        if coreMissing.count >= 3, templateAvailable {
+            let names = coreMissing.sorted().joined(separator: ", ")
+            let alert = NSAlert()
+            alert.messageText = "Project Not Configured"
+            alert.informativeText = "Missing core workflow configs (\(names)). Run full setup instead of creating empty stubs?"
+            alert.addButton(withTitle: "Run Setup")
+            alert.addButton(withTitle: "Fix Individually")
+            alert.addButton(withTitle: "Cancel")
+            guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                runFullSetup()
+                return
+            } else if response != .alertSecondButtonReturn {
+                return
+            }
+        }
 
         var details: [String] = []
         for tool in missingTools {
@@ -440,6 +463,23 @@ struct ProjectHealthPanel: View {
         }
     }
 
+    private func runFullSetup() {
+        let setupPath = "\(projectPath)/scripts/setup.sh"
+        let result = runActionWithOutput("cd '\(projectPath)' 2>/dev/null && bash '\(setupPath)' '\(projectPath)' 2>&1")
+        let resultAlert = NSAlert()
+        resultAlert.messageText = "Setup Result"
+        resultAlert.informativeText = result
+        resultAlert.addButton(withTitle: "OK")
+        if let window = NSApp.keyWindow ?? NSApp.mainWindow {
+            resultAlert.beginSheetModal(for: window) { _ in
+                self.onRefresh()
+            }
+        } else {
+            resultAlert.runModal()
+            onRefresh()
+        }
+    }
+
     private func runActionWithOutput(_ command: String) -> String {
         let task = Process()
         task.launchPath = "/bin/bash"
@@ -451,6 +491,6 @@ struct ProjectHealthPanel: View {
         task.waitUntilExit()
         let data = out.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return task.terminationStatus == 0 ? "OK" : "Failed: \(output.prefix(100))"
+        return task.terminationStatus == 0 ? "OK" : "Failed: \(output.prefix(200))"
     }
 }
