@@ -81,6 +81,27 @@ The xcframework is built via GitHub Actions on the [muxy-app/ghostty](https://gi
 - Review the PRs/Code against the purpose of the PR/Issue/Asked. If you find unrelated issues to the PR during the review, Report them in a separate section.
 - Apply review recommendations only after user's confirmation.
 
+## Upstream Merge Process
+
+- `upstream` remote: `https://github.com/muxy-app/muxy.git` (original repo)
+- `origin` remote: `https://github.com/unmalnickname/muxy.git` (our fork)
+- To merge upstream: `git fetch upstream && git merge upstream/main`
+- Common conflict patterns: `.archon/`, `.githooks/`, `.sentrux/`, `CLAUDE.md`, and extracted component files (`TabCell.swift`, `TabDragState.swift`, `DirectoryWatcher.swift`) — upstream may rename/move/delete them
+
+## Setup & Dependencies
+
+- Run `bash scripts/setup.sh` after pulling upstream — downloads GhosttyKit.xcframework, ripgrep (`Muxy/Resources/rg`), and terminfo
+- Sparkle 2.9.1 for auto-updates, Yams 5.4.0 for YAML parsing
+- To build a local `.app` bundle: copy binary + Sparkle.framework + compile Assets.xcassets with `actool`, add `@executable_path/../Frameworks` rpath, sign with `Muxy.entitlements`
+
+## Noteworthy Upstream Changes
+
+| Old (our fork) | New (upstream) |
+|---|---|
+| `DirectoryWatcher.swift` | `FileSystemWatcher.swift` |
+| `WorktreeSwitcherOverlay.swift` | Removed |
+| `TabCell.swift`, `TabDragState.swift`, `TabWidthPreferenceKey.swift` | Inlined in `TabStrip.swift` |
+
 ## Stack-Specific Rules (auto-detected)
 
 This project is a **Swift** project on **macOS**.
