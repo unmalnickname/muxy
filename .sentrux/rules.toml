@@ -21,6 +21,8 @@ max_god_file_percent = 20
 # Enforce modularity boundaries
 no_god_files = true
 
+
+
 # STACK-LAYERS:BEGIN — auto-replaced by setup.sh on install
 
 [[layers]]
