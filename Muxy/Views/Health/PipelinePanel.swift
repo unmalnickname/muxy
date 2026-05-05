@@ -13,13 +13,19 @@ struct PipelinePanel: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     Color.clear.frame(height: 10)
-                    validationSection
+                    workflowSelector
                         .padding(.horizontal, 10)
-                    if let output = state.validationOutput {
+                    if let wf = state.activeWorkflow {
                         sectionSpacer
-                        outputSection(output)
+                        workflowStatusBanner(wf)
+                            .padding(.horizontal, 10)
+                        sectionSpacer
+                        stepsSection(wf)
                             .padding(.horizontal, 10)
                     }
+                    sectionSpacer
+                    toolValidationSection
+                        .padding(.horizontal, 10)
                     Color.clear.frame(height: 12)
                 }
             }
@@ -43,6 +49,11 @@ struct PipelinePanel: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(MuxyTheme.fg)
             Spacer(minLength: 0)
+            if let lastRun = state.lastRun {
+                Text(timeAgo(lastRun))
+                    .font(.system(size: 10))
+                    .foregroundStyle(MuxyTheme.fgDim)
+            }
             Button(action: onRefresh) {
                 Image(systemName: "arrow.clockwise")
                     .font(.system(size: 11, weight: .medium))
@@ -57,59 +68,182 @@ struct PipelinePanel: View {
         .frame(height: 32)
     }
 
-    private var validationSection: some View {
+    private var workflowSelector: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("WORKFLOW")
+                .font(.system(size: 10, weight: .bold))
+                .tracking(0.5)
+                .foregroundStyle(MuxyTheme.fgDim)
+            if state.workflows.isEmpty {
+                Text("No workflows found in .archon/workflows/")
+                    .font(.system(size: 11))
+                    .foregroundStyle(MuxyTheme.fgMuted)
+            } else {
+                ForEach(state.workflows) { wf in
+                    let isActive = wf.id == state.activeWorkflowID
+                    let wid = wf.id
+                    Button(action: { state.activeWorkflowID = wid }, label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: isActive ? "circle.fill" : "circle")
+                                .font(.system(size: 8))
+                                .foregroundStyle(isActive ? MuxyTheme.accent : MuxyTheme.fgDim)
+                            Text(wf.name)
+                                .font(.system(size: 11, weight: isActive ? .semibold : .regular))
+                                .foregroundStyle(isActive ? MuxyTheme.fg : MuxyTheme.fgMuted)
+                            Spacer(minLength: 0)
+                            let followed = wf.steps.count(where: { $0.status == .followed })
+                            let total = wf.steps.count
+                            Text("\(followed)/\(total)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(MuxyTheme.fgDim)
+                        }
+                        .contentShape(Rectangle())
+                    })
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func workflowStatusBanner(_ wf: WorkflowDef) -> some View {
+        let skipped = wf.steps.filter { $0.status == .skipped }
+        let pending = wf.steps.filter { $0.status == .pending }
+
+        if !skipped.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.orange)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Workflow not fully followed")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(MuxyTheme.fg)
+                    Text("\(skipped.count) step\(skipped.count == 1 ? "" : "s") skipped")
+                        .font(.system(size: 11))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+            }
+            .padding(10)
+            .background(Color.orange.opacity(0.1))
+            .cornerRadius(6)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.orange.opacity(0.3), lineWidth: 1))
+        } else if !pending.isEmpty {
+            HStack(spacing: 8) {
+                Image(systemName: "clock")
+                    .font(.system(size: 14))
+                    .foregroundStyle(MuxyTheme.accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Workflow in progress")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(MuxyTheme.fg)
+                    Text("\(pending.count) step\(pending.count == 1 ? "" : "s") pending")
+                        .font(.system(size: 11))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+            }
+            .padding(10)
+            .background(MuxyTheme.accent.opacity(0.08))
+            .cornerRadius(6)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(MuxyTheme.accent.opacity(0.2), lineWidth: 1))
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 14))
+                    .foregroundStyle(.green)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("Workflow completed")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(MuxyTheme.fg)
+                    Text("All steps followed")
+                        .font(.system(size: 11))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+            }
+            .padding(10)
+            .background(Color.green.opacity(0.08))
+            .cornerRadius(6)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.green.opacity(0.2), lineWidth: 1))
+        }
+    }
+
+    private func stepsSection(_ wf: WorkflowDef) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader("Steps")
+            ForEach(wf.steps) { step in
+                stepRow(step)
+            }
+        }
+    }
+
+    private func stepRow(_ step: PipelineStep) -> some View {
+        HStack(spacing: 8) {
+            stepIcon(step.status)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(step.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(step.status == .skipped ? MuxyTheme.fgMuted : MuxyTheme.fg)
+                if let evidence = step.evidence {
+                    Text(evidence)
+                        .font(.system(size: 10))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+        .opacity(step.status == .skipped ? 0.7 : 1)
+    }
+
+    private func stepIcon(_ status: StepStatus) -> some View {
+        switch status {
+        case .followed:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(.green)
+        case .skipped:
+            Image(systemName: "exclamationmark.circle.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(.orange)
+        case .pending:
+            Image(systemName: "circle")
+                .font(.system(size: 13))
+                .foregroundStyle(MuxyTheme.fgDim.opacity(0.5))
+        }
+    }
+
+    private var toolValidationSection: some View {
         VStack(alignment: .leading, spacing: 6) {
+            sectionHeader("Tooling Health")
             HStack(spacing: 8) {
                 Image(systemName: "checkmark.shield.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(validationColor)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Workflow Validation")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(MuxyTheme.fgDim)
-                    if let passed = state.validationPassed {
+                    .font(.system(size: 14))
+                    .foregroundStyle(toolValidationColor)
+                VStack(alignment: .leading, spacing: 1) {
+                    if let passed = state.toolValidationPassed {
                         Text(passed ? "All checks passed" : "Issues detected")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(passed ? .green : .red)
-                        if let detail = state.validationDetail {
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(MuxyTheme.fg)
+                        if let detail = state.toolValidationDetail {
                             Text(detail)
-                                .font(.system(size: 11, design: .monospaced))
+                                .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(MuxyTheme.fgDim)
-                                .padding(.top, 2)
-                        }
-                        if let lastRun = state.lastRun {
-                            Text(timeAgo(lastRun))
-                                .font(.system(size: 10))
-                                .foregroundStyle(MuxyTheme.fgDim)
-                                .padding(.top, 2)
                         }
                     } else {
                         Text("Not yet validated")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(MuxyTheme.fgMuted)
+                            .font(.system(size: 12))
+                            .foregroundStyle(MuxyTheme.fgDim)
                     }
                 }
-                Spacer(minLength: 0)
             }
             .padding(.vertical, 4)
         }
     }
 
-    private func outputSection(_ output: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            sectionHeader("Output")
-            ScrollView([.horizontal, .vertical]) {
-                Text(output)
-                    .font(.system(size: 10, design: .monospaced))
-                    .foregroundStyle(MuxyTheme.fgDim)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(height: 200)
-            .background(MuxyTheme.bg.opacity(0.5))
-            .cornerRadius(4)
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(MuxyTheme.border, lineWidth: 1))
-        }
+    private var toolValidationColor: Color {
+        guard let passed = state.toolValidationPassed else { return MuxyTheme.fgDim }
+        return passed ? .green : .red
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -118,11 +252,6 @@ struct PipelinePanel: View {
             .tracking(0.5)
             .foregroundStyle(MuxyTheme.fgDim)
             .padding(.bottom, 4)
-    }
-
-    private var validationColor: Color {
-        guard let passed = state.validationPassed else { return MuxyTheme.fgDim }
-        return passed ? .green : .red
     }
 
     private func timeAgo(_ date: Date) -> String {
