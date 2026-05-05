@@ -52,6 +52,9 @@ final class EditorTabState: Identifiable {
     var isReadOnly = false
     var cursorLine: Int = 1
     var cursorColumn: Int = 1
+    var pendingJumpLine: Int?
+    var pendingJumpColumn: Int = 1
+    var pendingJumpVersion: Int = 0
     var searchVisible = false
     var searchFocusVersion = 0
     var editorFocusVersion = 0
@@ -70,6 +73,7 @@ final class EditorTabState: Identifiable {
     var replaceAllVersion = 0
     var currentSelection = ""
     var awaitingLargeFileConfirmation = false
+    var hasExternalChange = false
     var largeFileSize: Int64 = 0
     var backingStore: TextBackingStore?
     var markdownViewMode: EditorMarkdownViewMode = .code
@@ -82,29 +86,20 @@ final class EditorTabState: Identifiable {
     var markdownEditorScrollRequestVersion: Int = 0
     var markdownEditorScrollRequestY: CGFloat?
 
-    @ObservationIgnored
-    var markdownEditorScrollY: CGFloat = 0
-    @ObservationIgnored
-    var markdownEditorViewportHeight: CGFloat = 0
-    @ObservationIgnored
-    var markdownEditorMaxScrollY: CGFloat = 0
-    @ObservationIgnored
-    var markdownEditorLineHeight: CGFloat = 0
-    @ObservationIgnored
-    var markdownPreviewGeometries: [MarkdownPreviewAnchorGeometry] = []
-    @ObservationIgnored
-    var markdownPreviewMaxScrollTop: CGFloat = 0
-    @ObservationIgnored
-    var markdownPreviewViewportHeight: CGFloat = 0
+    @ObservationIgnored var markdownEditorScrollY: CGFloat = 0
+    @ObservationIgnored var markdownEditorViewportHeight: CGFloat = 0
+    @ObservationIgnored var markdownEditorMaxScrollY: CGFloat = 0
+    @ObservationIgnored var markdownEditorLineHeight: CGFloat = 0
+    @ObservationIgnored var markdownPreviewGeometries: [MarkdownPreviewAnchorGeometry] = []
+    @ObservationIgnored var markdownPreviewMaxScrollTop: CGFloat = 0
+    @ObservationIgnored var markdownPreviewViewportHeight: CGFloat = 0
 
-    @ObservationIgnored
-    let markdownSyncCoordinator = MarkdownSyncCoordinator()
-    @ObservationIgnored
-    private var markdownSyncAnchorsCache: [MarkdownSyncAnchor] = []
-    @ObservationIgnored
-    private var markdownSyncAnchorsCacheVersion: Int = -1
-    @ObservationIgnored
-    private(set) var syntaxHighlighter: SyntaxHighlighter?
+    @ObservationIgnored private var fileWatcher: EditorFileWatcher?
+    @ObservationIgnored private var lastDiskModificationDate: Date?
+    @ObservationIgnored let markdownSyncCoordinator = MarkdownSyncCoordinator()
+    @ObservationIgnored private var markdownSyncAnchorsCache: [MarkdownSyncAnchor] = []
+    @ObservationIgnored private var markdownSyncAnchorsCacheVersion: Int = -1
+    @ObservationIgnored private(set) var syntaxHighlighter: SyntaxHighlighter?
 
     static let largeFileWarningThreshold: Int64 = 5 * 1024 * 1024
     static let largeFileRefuseThreshold: Int64 = 50 * 1024 * 1024
@@ -132,8 +127,7 @@ final class EditorTabState: Identifiable {
         Self.markdownExtensions.contains(fileExtension)
     }
 
-    @ObservationIgnored
-    private var loadTask: Task<Void, Never>?
+    @ObservationIgnored private var loadTask: Task<Void, Never>?
 
     private enum FileLoadEvent {
         case initial(String, hasMore: Bool)
@@ -143,11 +137,14 @@ final class EditorTabState: Identifiable {
 
     private enum SaveError: LocalizedError {
         case fileIsReadOnly(String)
+        case externalChangeUnresolved(String)
 
         var errorDescription: String? {
             switch self {
             case let .fileIsReadOnly(path):
                 "File is read-only: \(URL(fileURLWithPath: path).lastPathComponent)"
+            case let .externalChangeUnresolved(path):
+                "File changed on disk: \(URL(fileURLWithPath: path).lastPathComponent). Resolve the conflict before saving."
             }
         }
     }
@@ -159,6 +156,7 @@ final class EditorTabState: Identifiable {
             markdownViewMode = .preview
         }
         syntaxHighlighter = Self.makeSyntaxHighlighter(for: filePath)
+        installFileWatcher()
         loadFile()
     }
 
@@ -167,6 +165,7 @@ final class EditorTabState: Identifiable {
         filePath = newPath
         syntaxHighlighter = Self.makeSyntaxHighlighter(for: newPath)
         refreshReadOnlyStatus()
+        installFileWatcher()
     }
 
     func markdownSyncAnchors() -> [MarkdownSyncAnchor] {
@@ -214,6 +213,41 @@ final class EditorTabState: Identifiable {
 
     deinit {
         loadTask?.cancel()
+    }
+
+    private func installFileWatcher() {
+        fileWatcher = nil
+        fileWatcher = EditorFileWatcher(filePath: filePath) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleFileWatcherFire()
+            }
+        }
+    }
+
+    private func handleFileWatcherFire() {
+        guard !isLoading, !isSaving, !awaitingLargeFileConfirmation else { return }
+        guard let currentMTime = Self.modificationDate(at: filePath) else { return }
+        if let lastDiskModificationDate, currentMTime == lastDiskModificationDate { return }
+        if isModified {
+            hasExternalChange = true
+            return
+        }
+        performLoad()
+    }
+
+    func reloadFromDisk() {
+        hasExternalChange = false
+        performLoad()
+    }
+
+    func keepLocalChanges() {
+        hasExternalChange = false
+        lastDiskModificationDate = Self.modificationDate(at: filePath)
+    }
+
+    private static func modificationDate(at path: String) -> Date? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path) else { return nil }
+        return attrs[.modificationDate] as? Date
     }
 
     func loadFile() {
@@ -278,6 +312,9 @@ final class EditorTabState: Identifiable {
                         isModified = false
                         isLoading = false
                         isIncrementalLoading = hasMore
+                        if !hasMore {
+                            lastDiskModificationDate = Self.modificationDate(at: path)
+                        }
                     case let .appended(text):
                         if let backingStore {
                             backingStore.appendText(text)
@@ -301,6 +338,7 @@ final class EditorTabState: Identifiable {
                         if isIncrementalLoading {
                             isIncrementalLoading = false
                         }
+                        lastDiskModificationDate = Self.modificationDate(at: path)
                     }
                 }
 
@@ -435,6 +473,9 @@ final class EditorTabState: Identifiable {
 
     func saveFileAsync() async throws {
         guard !isSaving else { return }
+        if hasExternalChange {
+            throw SaveError.externalChangeUnresolved(filePath)
+        }
         isSaving = true
         guard let store = backingStore else {
             isSaving = false
@@ -456,6 +497,7 @@ final class EditorTabState: Identifiable {
             try await Self.writeFile(text: textToSave, path: path)
             isSaving = false
             isModified = false
+            lastDiskModificationDate = Self.modificationDate(at: path)
         } catch {
             isSaving = false
             throw error

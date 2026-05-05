@@ -23,6 +23,10 @@ struct EditorPane: View {
             } else if let error = state.errorMessage {
                 errorView(error)
             } else {
+                if state.hasExternalChange {
+                    externalChangeBanner
+                    Rectangle().fill(MuxyTheme.border).frame(height: 1)
+                }
                 editorContentLayer
             }
         }
@@ -113,6 +117,8 @@ struct EditorPane: View {
             CodeEditorView(
                 state: state,
                 editorSettings: editorSettings,
+                showLineNumbers: editorSettings.showLineNumbers,
+                lineWrapping: editorSettings.lineWrapping,
                 themeVersion: ghostty.configVersion,
                 showsVerticalScroller: true,
                 focused: focused,
@@ -228,6 +234,29 @@ struct EditorPane: View {
 
     private var showsCodeEditor: Bool {
         !state.isMarkdownFile || state.markdownViewMode != .preview
+    }
+
+    private var externalChangeBanner: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(MuxyTheme.diffHunkFg)
+            Text("This file changed on disk. You have unsaved changes.")
+                .font(.system(size: 11))
+                .foregroundStyle(MuxyTheme.fg)
+            Spacer()
+            Button("Reload from Disk") {
+                state.reloadFromDisk()
+            }
+            .controlSize(.small)
+            Button("Keep My Changes") {
+                state.keepLocalChanges()
+            }
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(MuxyTheme.surface)
     }
 
     private var loadingView: some View {

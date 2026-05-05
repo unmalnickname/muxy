@@ -5,6 +5,7 @@ struct TerminalPane: View {
     let state: TerminalPaneState
     let focused: Bool
     let visible: Bool
+    let areaID: UUID
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
@@ -21,6 +22,7 @@ struct TerminalPane: View {
             TerminalBridge(
                 state: state,
                 focused: focused,
+                areaID: areaID,
                 onFocus: onFocus,
                 onProcessExit: onProcessExit,
                 onSplitRequest: onSplitRequest
@@ -110,6 +112,7 @@ struct RemoteControlledPlaceholder: View {
 struct TerminalBridge: NSViewRepresentable {
     let state: TerminalPaneState
     let focused: Bool
+    let areaID: UUID
     let onFocus: () -> Void
     let onProcessExit: () -> Void
     let onSplitRequest: (SplitDirection, SplitPosition) -> Void
@@ -143,6 +146,7 @@ struct TerminalBridge: NSViewRepresentable {
         view.onFocus = onFocus
         view.onProcessExit = onProcessExit
         view.onSplitRequest = onSplitRequest
+        view.onExternalDragHoverChange = makeExternalDragHoverHandler(areaID: areaID)
         view.onTitleChange = { [weak state] title in
             DispatchQueue.main.async {
                 state?.setTitle(title)
@@ -178,6 +182,7 @@ struct TerminalBridge: NSViewRepresentable {
         nsView.onFocus = onFocus
         nsView.onProcessExit = onProcessExit
         nsView.onSplitRequest = onSplitRequest
+        nsView.onExternalDragHoverChange = makeExternalDragHoverHandler(areaID: areaID)
         nsView.onTitleChange = { [weak state] title in
             DispatchQueue.main.async {
                 state?.setTitle(title)
@@ -213,6 +218,19 @@ struct TerminalBridge: NSViewRepresentable {
         }
     }
 
+    private func makeExternalDragHoverHandler(areaID: UUID) -> (Bool) -> Void {
+        { hovering in
+            NotificationCenter.default.post(
+                name: .externalDragHoverChanged,
+                object: nil,
+                userInfo: [
+                    ExternalDragHoverUserInfoKey.isHovering: hovering,
+                    ExternalDragHoverUserInfoKey.areaID: areaID,
+                ]
+            )
+        }
+    }
+
     private static func buildEnvVars(paneID: UUID, worktreeKey key: WorktreeKey) -> [(key: String, value: String)] {
         var vars: [(key: String, value: String)] = [
             (key: "MUXY_PANE_ID", value: paneID.uuidString),
@@ -240,13 +258,15 @@ struct TerminalBridge: NSViewRepresentable {
             Self.resolveFilePath(token, projectPath: projectPath) != nil
         }
         view.onOpenURL = { url in
-            guard let projectID, url.isFileURL else { return false }
-            let path = url.path
-            guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
-            Task { @MainActor in
-                NotificationStore.shared.appState?.openFile(path, projectID: projectID, preserveFocus: true)
+            if let projectID, url.isFileURL {
+                let path = url.path
+                guard !path.isEmpty, FileManager.default.fileExists(atPath: path) else { return false }
+                Task { @MainActor in
+                    NotificationStore.shared.appState?.openFile(path, projectID: projectID, preserveFocus: true)
+                }
+                return true
             }
-            return true
+            return NSWorkspace.shared.open(url)
         }
     }
 

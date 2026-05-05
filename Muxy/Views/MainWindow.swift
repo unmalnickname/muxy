@@ -26,40 +26,46 @@ struct MainWindow: View {
         static let maxWidth: CGFloat = 600
     }
 
-    @State
-    private var vcsPanelVisible = false
-    @State
-    private var vcsPanelWidth: CGFloat = AttachedVCSLayout.defaultWidth
-    @State
-    private var vcsStates: [WorktreeKey: VCSTabState] = [:]
-    @State
-    private var fileTreePanelVisible = false
-    @AppStorage("muxy.fileTreeWidth")
-    private var fileTreePanelWidth: Double = .init(FileTreeLayout.defaultWidth)
-    @State
-    private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
-    @State
-    private var healthPanelVisible = false
-    @State
-    private var healthState = ProjectHealthState()
-    @State
-    private var pipelinePanelVisible = false
-    @State
-    private var pipelineState = PipelineState()
-    @State
-    private var showQuickOpen = false
-    @State
-    private var showWorktreeSwitcher = false
-    @State
-    private var isFullScreen = false
-    @State
-    private var sidebarExpanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
-    @AppStorage(SidebarCollapsedStyle.storageKey)
-    private var sidebarCollapsedStyleRaw = SidebarCollapsedStyle.defaultValue.rawValue
-    @AppStorage(SidebarExpandedStyle.storageKey)
-    private var sidebarExpandedStyleRaw = SidebarExpandedStyle.defaultValue.rawValue
-    @AppStorage("muxy.notifications.toastPosition")
-    private var toastPositionRaw = ToastPosition.topCenter.rawValue
+    private enum CloseConfirmationKind {
+        case lastTab
+        case unsavedEditor
+        case runningProcess
+
+        var title: String {
+            switch self {
+            case .lastTab: "Close Project?"
+            case .unsavedEditor: "Save Changes Before Closing?"
+            case .runningProcess: "Close Tab?"
+            }
+        }
+
+        var message: String {
+            switch self {
+            case .lastTab: "This is the last tab. Closing it will remove the project from the sidebar."
+            case .unsavedEditor: "This file has unsaved changes. If you don't save, your changes will be lost."
+            case .runningProcess: "A process is still running in this tab. Are you sure you want to close it?"
+            }
+        }
+    }
+
+    @State private var vcsPanelVisible = false
+    @State private var vcsPanelWidth: CGFloat = AttachedVCSLayout.defaultWidth
+    @State private var vcsStates: [WorktreeKey: VCSTabState] = [:]
+    @State private var fileTreePanelVisible = false
+    @AppStorage("muxy.fileTreeWidth") private var fileTreePanelWidth: Double = .init(FileTreeLayout.defaultWidth)
+    @State private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
+    @State private var healthPanelVisible = false
+    @State private var healthState = ProjectHealthState()
+    @State private var pipelinePanelVisible = false
+    @State private var pipelineState = PipelineState()
+    @State private var showQuickOpen = false
+    @State private var showFindInFiles = false
+    @State private var showWorktreeSwitcher = false
+    @State private var isFullScreen = false
+    @State private var sidebarExpanded = UserDefaults.standard.bool(forKey: "muxy.sidebarExpanded")
+    @AppStorage(SidebarCollapsedStyle.storageKey) private var sidebarCollapsedStyleRaw = SidebarCollapsedStyle.defaultValue.rawValue
+    @AppStorage(SidebarExpandedStyle.storageKey) private var sidebarExpandedStyleRaw = SidebarExpandedStyle.defaultValue.rawValue
+    @AppStorage("muxy.notifications.toastPosition") private var toastPositionRaw = ToastPosition.topCenter.rawValue
     private let trafficLightWidth: CGFloat = 75
 
     var body: some View {
@@ -104,7 +110,7 @@ struct MainWindow: View {
                 pipelineState: pipelineState
             )
         }
-        .environment(\.overlayActive, showQuickOpen || showWorktreeSwitcher)
+        .environment(\.overlayActive, showQuickOpen || showFindInFiles || showWorktreeSwitcher)
         .overlay(alignment: toastAlignment) {
             if let toast = ToastState.shared.message {
                 HStack(spacing: 6) {
@@ -140,18 +146,32 @@ struct MainWindow: View {
             }
         }
         .overlay {
+            if showFindInFiles, let project = activeProject {
+                FindInFilesOverlay(
+                    projectPath: activeWorktreePath(for: project),
+                    onSelect: { match in
+                        showFindInFiles = false
+                        appState.openFile(
+                            match.absolutePath,
+                            projectID: project.id,
+                            line: match.lineNumber,
+                            column: match.column
+                        )
+                    },
+                    onDismiss: { showFindInFiles = false }
+                )
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+            }
+        }
+        .overlay {
             if showWorktreeSwitcher {
-                WorktreeSwitcherOverlay(
-                    items: worktreeSwitcherItems,
-                    activeKey: activeWorktreeKey,
+                OpenerOverlay(
+                    items: openerItems,
+                    recents: openerRecentItems,
+                    activeWorktreeKey: activeWorktreeKey,
                     onSelect: { item in
                         showWorktreeSwitcher = false
-                        guard let project = projectStore.projects.first(where: { $0.id == item.projectID }) else { return }
-                        if appState.activeProjectID == item.projectID {
-                            appState.selectWorktree(projectID: item.projectID, worktree: item.worktree)
-                        } else {
-                            appState.selectProject(project, worktree: item.worktree)
-                        }
+                        handleOpenerSelection(item)
                     },
                     onDismiss: { showWorktreeSwitcher = false }
                 )
@@ -159,6 +179,7 @@ struct MainWindow: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: showQuickOpen)
+        .animation(.easeInOut(duration: 0.15), value: showFindInFiles)
         .animation(.easeInOut(duration: 0.15), value: showWorktreeSwitcher)
         .animation(.easeInOut(duration: 0.2), value: ToastState.shared.message != nil)
         .coordinateSpace(name: DragCoordinateSpace.mainWindow)
@@ -174,6 +195,9 @@ struct MainWindow: View {
         .ignoresSafeArea(.container, edges: .top)
         .onReceive(NotificationCenter.default.publisher(for: .quickOpen)) { _ in
             showQuickOpen.toggle()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .findInFiles)) { _ in
+            showFindInFiles.toggle()
         }
         .onReceive(NotificationCenter.default.publisher(for: .switchWorktree)) { _ in
             showWorktreeSwitcher.toggle()
@@ -387,15 +411,106 @@ struct MainWindow: View {
         }
     }
 
-    private var worktreeSwitcherItems: [WorktreeSwitcherItem] {
-        projectStore.projects.flatMap { project in
-            worktreeStore.list(for: project.id).map { worktree in
-                WorktreeSwitcherItem(
+    private var openerItems: [OpenerItem] {
+        var items: [OpenerItem] = []
+
+        for project in projectStore.projects {
+            items.append(.project(.init(
+                projectID: project.id,
+                projectName: project.name
+            )))
+        }
+
+        for project in projectStore.projects {
+            for worktree in worktreeStore.list(for: project.id) {
+                items.append(.worktree(.init(
                     projectID: project.id,
                     projectName: project.name,
-                    worktree: worktree
-                )
+                    worktreeID: worktree.id,
+                    worktreeName: worktree.isPrimary && worktree.name.isEmpty ? "main" : worktree.name,
+                    branch: worktree.branch,
+                    isPrimary: worktree.isPrimary
+                )))
             }
+        }
+
+        if let active = activeProject {
+            for descriptor in appState.availableLayouts(for: active.id) {
+                items.append(.layout(.init(
+                    projectID: active.id,
+                    projectName: active.name,
+                    layoutName: descriptor.name
+                )))
+            }
+
+            let worktrees = worktreeStore.list(for: active.id)
+            for branch in BranchCache.shared.branches(for: active.path) {
+                let matching = worktrees.first { $0.branch == branch }
+                items.append(.branch(.init(
+                    projectID: active.id,
+                    projectName: active.name,
+                    branch: branch,
+                    matchingWorktreeID: matching?.id
+                )))
+            }
+
+            for area in appState.allAreas(for: active.id) {
+                for tab in area.tabs {
+                    items.append(.openTab(.init(
+                        projectID: active.id,
+                        projectName: active.name,
+                        areaID: area.id,
+                        tabID: tab.id,
+                        title: tab.title,
+                        kind: tab.kind.rawValue
+                    )))
+                }
+            }
+        }
+
+        return items
+    }
+
+    private var openerRecentItems: [OpenerItem] {
+        let allByID = Dictionary(uniqueKeysWithValues: openerItems.map { ($0.id, $0) })
+        return OpenerPreferences.recents.compactMap { allByID[$0.key] }
+    }
+
+    private func handleOpenerSelection(_ item: OpenerItem) {
+        OpenerPreferences.remember(.init(key: item.id, category: item.category))
+        switch item {
+        case let .project(project):
+            guard let target = projectStore.projects.first(where: { $0.id == project.projectID }) else { return }
+            let worktree = worktreeStore.preferred(for: target.id, matching: appState.activeWorktreeID[target.id])
+            if let worktree {
+                appState.selectProject(target, worktree: worktree)
+            }
+        case let .worktree(wt):
+            guard let target = projectStore.projects.first(where: { $0.id == wt.projectID }),
+                  let worktree = worktreeStore.list(for: wt.projectID).first(where: { $0.id == wt.worktreeID })
+            else { return }
+            if appState.activeProjectID == wt.projectID {
+                appState.selectWorktree(projectID: wt.projectID, worktree: worktree)
+            } else {
+                appState.selectProject(target, worktree: worktree)
+            }
+        case let .layout(layout):
+            appState.requestApplyLayout(projectID: layout.projectID, layoutName: layout.layoutName)
+        case let .branch(br):
+            if let worktreeID = br.matchingWorktreeID,
+               let worktree = worktreeStore.list(for: br.projectID).first(where: { $0.id == worktreeID }),
+               let project = projectStore.projects.first(where: { $0.id == br.projectID })
+            {
+                if appState.activeProjectID == br.projectID {
+                    appState.selectWorktree(projectID: br.projectID, worktree: worktree)
+                } else {
+                    appState.selectProject(project, worktree: worktree)
+                }
+            } else {
+                ToastState.shared.show("No worktree for '\(br.branch)'")
+            }
+        case let .openTab(tab):
+            appState.dispatch(.selectTab(projectID: tab.projectID, areaID: tab.areaID, tabID: tab.tabID))
         }
     }
 
