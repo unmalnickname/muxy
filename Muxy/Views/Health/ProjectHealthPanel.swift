@@ -43,6 +43,7 @@ struct ProjectHealthPanel: View {
             }
         }
         .background(MuxyTheme.bg)
+        .onChange(of: projectPath) { _, _ in onRefresh() }
     }
 
     private var sectionSpacer: some View {
