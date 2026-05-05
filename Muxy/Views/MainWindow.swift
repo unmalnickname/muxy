@@ -200,36 +200,37 @@ struct MainWindow: View {
             Rectangle().fill(MuxyTheme.border).frame(height: 1)
                 .background(MuxyTheme.bg)
 
-            MainContentArea(
-                appState: appState,
-                projectStore: projectStore,
-                worktreeStore: worktreeStore,
-                sidebarExpanded: sidebarExpanded,
-                sidebarCollapsedStyle: sidebarCollapsedStyle,
-                sidebarExpandedStyle: sidebarExpandedStyle,
-                vcsPanelVisible: $vcsPanelVisible,
-                vcsPanelWidth: $vcsPanelWidth,
-                vcsStates: vcsStates,
-                fileTreePanelVisible: $fileTreePanelVisible,
-                fileTreePanelWidth: $fileTreePanelWidth,
-                fileTreeStates: fileTreeStates,
-                healthPanelVisible: $healthPanelVisible,
-                healthState: healthState
-            )
-        }
-        .overlay(alignment: .trailing) {
-            if pipelinePanelVisible, let project = activeProject {
-                HStack(spacing: 0) {
-                    PipelinePanel(
-                        state: pipelineState,
-                        projectPath: activeWorktreePath(for: project),
-                        projectName: project.name,
-                        onRefresh: {
-                            pipelineState.refresh(projectPath: activeWorktreePath(for: project))
-                        }
-                    )
-                    .frame(width: 320)
-                    Rectangle().fill(MuxyTheme.border).frame(width: 1)
+            ZStack(alignment: .trailing) {
+                MainContentArea(
+                    appState: appState,
+                    projectStore: projectStore,
+                    worktreeStore: worktreeStore,
+                    sidebarExpanded: sidebarExpanded,
+                    sidebarCollapsedStyle: sidebarCollapsedStyle,
+                    sidebarExpandedStyle: sidebarExpandedStyle,
+                    vcsPanelVisible: $vcsPanelVisible,
+                    vcsPanelWidth: $vcsPanelWidth,
+                    vcsStates: vcsStates,
+                    fileTreePanelVisible: $fileTreePanelVisible,
+                    fileTreePanelWidth: $fileTreePanelWidth,
+                    fileTreeStates: fileTreeStates,
+                    healthPanelVisible: $healthPanelVisible,
+                    healthState: healthState
+                )
+
+                if pipelinePanelVisible, let project = activeProject {
+                    HStack(spacing: 0) {
+                        PipelinePanel(
+                            state: pipelineState,
+                            projectPath: activeWorktreePath(for: project),
+                            projectName: project.name,
+                            onRefresh: {
+                                pipelineState.refresh(projectPath: activeWorktreePath(for: project))
+                            }
+                        )
+                        .frame(width: 320)
+                        Rectangle().fill(MuxyTheme.border).frame(width: 1)
+                    }
                 }
             }
         }
