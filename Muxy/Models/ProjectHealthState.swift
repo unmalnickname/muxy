@@ -74,9 +74,17 @@ final class ProjectHealthState {
     }
 
     private func runValidation(projectPath: String) {
+        let validateScript = Bundle.main.path(forResource: "validate-workflow", ofType: "sh", inDirectory: "Scripts")
+            ?? (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/Scripts/validate-workflow.sh")
+        guard FileManager.default.fileExists(atPath: validateScript) else {
+            validationPassed = nil
+            validationDetail = "validate-workflow.sh not bundled"
+            return
+        }
+
         let task = Process()
         task.launchPath = "/bin/bash"
-        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && scripts/validate-workflow.sh --ci 2>&1"]
+        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && '\(validateScript)' --ci 2>&1"]
         let out = Pipe()
         task.standardOutput = out
         task.standardError = out
@@ -91,7 +99,7 @@ final class ProjectHealthState {
             }
         } catch {
             validationPassed = nil
-            validationDetail = nil
+            validationDetail = "validation failed: \(error.localizedDescription)"
         }
     }
 

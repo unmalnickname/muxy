@@ -274,9 +274,17 @@ final class PipelineState {
     // MARK: - Tool Validation
 
     private func runToolValidation(projectPath: String) {
+        let validateScript = Bundle.main.path(forResource: "validate-workflow", ofType: "sh", inDirectory: "Scripts")
+            ?? (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/Scripts/validate-workflow.sh")
+        guard FileManager.default.fileExists(atPath: validateScript) else {
+            toolValidationPassed = nil
+            toolValidationDetail = "validate-workflow.sh not bundled"
+            return
+        }
+
         let task = Process()
         task.launchPath = "/bin/bash"
-        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && scripts/validate-workflow.sh --ci 2>&1; echo \"EXIT_CODE=$?\""]
+        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && '\(validateScript)' --ci 2>&1; echo \"EXIT_CODE=$?\""]
         let out = Pipe()
         task.standardOutput = out
         task.standardError = out
@@ -299,7 +307,10 @@ final class PipelineState {
                 let cleaned = resultsLine.replacingOccurrences(of: "[^a-zA-Z0-9, ]", with: "", options: .regularExpression)
                 toolValidationDetail = cleaned.trimmingCharacters(in: .whitespaces)
             }
-        } catch {}
+        } catch {
+            toolValidationPassed = nil
+            toolValidationDetail = "validation failed: \(error.localizedDescription)"
+        }
     }
 
     // MARK: - Per-Step Detection
