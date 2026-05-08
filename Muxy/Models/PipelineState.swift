@@ -68,13 +68,17 @@ struct StepResultRecord: Codable {
 }
 
 @Observable
-final class PipelineState {
+final class PipelineState: @unchecked Sendable {
     var workflows: [WorkflowDef] = []
     var activeWorkflowID: String?
     var toolValidationPassed: Bool?
     var toolValidationDetail: String?
     var lastRun: Date?
     var history: [PipelineRunRecord] = []
+
+    @ObservationIgnored private var watcher: GitDirectoryWatcher?
+    @ObservationIgnored private var remoteChangeObserver: NSObjectProtocol?
+    private var watchedProjectPath: String?
 
     var activeWorkflow: WorkflowDef? {
         guard let id = activeWorkflowID else { return workflows.first }
@@ -97,6 +101,8 @@ final class PipelineState {
     }
 
     func refresh(projectPath: String) {
+        installWatcher(projectPath: projectPath)
+        observeRemoteChanges(projectPath: projectPath)
         lastRun = Date()
         loadWorkflows(projectPath: projectPath)
         detectStepCompliance(projectPath: projectPath)
@@ -509,6 +515,40 @@ final class PipelineState {
         case ..<3600: return "\(Int(interval / 60))m ago"
         case ..<86400: return "\(Int(interval / 3600))h ago"
         default: return "\(Int(interval / 86400))d ago"
+        }
+    }
+
+    private func installWatcher(projectPath: String) {
+        guard watchedProjectPath != projectPath else { return }
+        watchedProjectPath = projectPath
+        watcher = GitDirectoryWatcher(directoryPath: projectPath) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.refresh(projectPath: projectPath)
+            }
+        }
+    }
+
+    private func observeRemoteChanges(projectPath: String) {
+        guard watchedProjectPath != projectPath else { return }
+        let path = projectPath
+        remoteChangeObserver = NotificationCenter.default.addObserver(
+            forName: .vcsRepoDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let notifiedPath = notification.userInfo?["repoPath"] as? String,
+                  notifiedPath == path
+            else { return }
+            MainActor.assumeIsolated {
+                self?.refresh(projectPath: path)
+            }
+        }
+    }
+
+    deinit {
+        if let observer = remoteChangeObserver {
+            NotificationCenter.default.removeObserver(observer)
         }
     }
 }

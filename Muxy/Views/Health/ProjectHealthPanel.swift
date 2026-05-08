@@ -406,7 +406,7 @@ struct ProjectHealthPanel: View {
             alert.addButton(withTitle: "Run Setup")
             alert.addButton(withTitle: "Fix Individually")
             alert.addButton(withTitle: "Cancel")
-            guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
+            guard NSApp.keyWindow ?? NSApp.mainWindow != nil else { return }
             let response = alert.runModal()
             if response == .alertFirstButtonReturn {
                 runFullSetup()
@@ -430,7 +430,7 @@ struct ProjectHealthPanel: View {
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Fix All")
         alert.addButton(withTitle: "Cancel")
-        guard let window = NSApp.keyWindow ?? NSApp.mainWindow,
+        guard NSApp.keyWindow ?? NSApp.mainWindow != nil,
               alert.runModal() == .alertFirstButtonReturn
         else { return }
 

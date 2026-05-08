@@ -149,6 +149,12 @@ struct MainWindow: View {
                 if fileTreePanelVisible {
                     ensureFileTreeState(for: project)
                 }
+                if healthPanelVisible {
+                    healthState.refresh(projectPath: activeWorktreePath(for: project))
+                }
+                if pipelinePanelVisible {
+                    pipelineState.refresh(projectPath: activeWorktreePath(for: project))
+                }
             }
             .modifier(FileTreeSelectionSync(
                 filePath: activeEditorFilePath,

@@ -20,4 +20,5 @@ extension Notification.Name {
     static let toggleHealth = Notification.Name("MuxyToggleHealth")
     static let togglePipeline = Notification.Name("MuxyTogglePipeline")
     static let vcsRepoDidChange = Notification.Name("MuxyVCSRepoDidChange")
+    static let projectFilesDidChange = Notification.Name("MuxyProjectFilesDidChange")
 }
