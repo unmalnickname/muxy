@@ -57,59 +57,75 @@ final class ProjectHealthState: @unchecked Sendable {
     var testPassed: Int = 0
     var validationPassed: Bool?
     var validationDetail: String?
+    var lastRefresh: Date?
+    var isLoading = false
 
-    @ObservationIgnored private var watcher: GitDirectoryWatcher?
-    @ObservationIgnored private var remoteChangeObserver: NSObjectProtocol?
-    private var watchedProjectPath: String?
-
-    nonisolated(unsafe) private static let dateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm:ss"
-        return f
-    }()
-
-    func refresh(projectPath: String) {
-        installWatcher(projectPath: projectPath)
-        observeRemoteChanges(projectPath: projectPath)
-        refreshWorkflowConfigs(projectPath: projectPath)
-        refreshGlobalTools()
-        refreshCI(projectPath: projectPath)
-        refreshPiHistory()
-        refreshQuality(projectPath: projectPath)
-        runValidation(projectPath: projectPath)
+    private struct RefreshResult {
+        let workflowItems: [WorkflowItem]
+        let globalTools: [GlobalToolItem]
+        let ciStatus: CIStatus?
+        let piEvents: [PiExtensionEvent]
+        let qualityScore: Int
+        let godFileCount: Int
+        let validationPassed: Bool?
+        let validationDetail: String?
     }
 
-    private func runValidation(projectPath: String) {
-        let validateScript = Bundle.main.path(forResource: "validate-workflow", ofType: "sh", inDirectory: "Scripts")
-            ?? (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/Scripts/validate-workflow.sh")
-        guard FileManager.default.fileExists(atPath: validateScript) else {
-            validationPassed = nil
-            validationDetail = "validate-workflow.sh not bundled"
-            return
-        }
-
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && '\(validateScript)' --ci 2>&1"]
-        let out = Pipe()
-        task.standardOutput = out
-        task.standardError = out
-        do {
-            try task.run()
-            task.waitUntilExit()
-            let data = out.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8) ?? ""
-            validationPassed = task.terminationStatus == 0
-            if let resultsLine = output.components(separatedBy: .newlines).last(where: { $0.contains("passed") }) {
-                validationDetail = resultsLine.trimmingCharacters(in: .whitespacesAndNewlines)
+    func refresh(projectPath: String, includeSlow: Bool = true) {
+        lastRefresh = Date()
+        isLoading = true
+        let slow = includeSlow
+        Task.detached { [weak self] in
+            let result = Self.computeAll(projectPath: projectPath, includeSlow: slow)
+            await MainActor.run {
+                guard let self else { return }
+                self.workflowItems = result.workflowItems
+                self.globalTools = result.globalTools
+                self.ciStatus = result.ciStatus
+                self.piEvents = result.piEvents
+                self.qualityScore = result.qualityScore
+                self.godFileCount = result.godFileCount
+                self.validationPassed = result.validationPassed
+                self.validationDetail = result.validationDetail
+                self.isLoading = false
             }
-        } catch {
-            validationPassed = nil
-            validationDetail = "validation failed: \(error.localizedDescription)"
         }
     }
 
-    private func refreshWorkflowConfigs(projectPath: String) {
+    func forceRefresh(projectPath: String) {
+        refresh(projectPath: projectPath)
+    }
+
+    private static func computeAll(projectPath: String, includeSlow: Bool) -> RefreshResult {
+        let workflowItems = refreshWorkflowConfigsStatic(projectPath: projectPath)
+        let globalTools = includeSlow ? probeGlobalTools() : []
+        let piEvents = includeSlow ? refreshPiHistoryStatic() : []
+        let (qualityScore, godFileCount) = refreshQualityStatic(projectPath: projectPath)
+
+        var ciStatus: CIStatus?
+        var validationPassed: Bool?
+        var validationDetail: String?
+
+        if includeSlow {
+            ciStatus = refreshCIStatic(projectPath: projectPath)
+            let validation = runValidationStatic(projectPath: projectPath)
+            validationPassed = validation.passed
+            validationDetail = validation.detail
+        }
+
+        return RefreshResult(
+            workflowItems: workflowItems,
+            globalTools: globalTools,
+            ciStatus: ciStatus,
+            piEvents: piEvents,
+            qualityScore: qualityScore,
+            godFileCount: godFileCount,
+            validationPassed: validationPassed,
+            validationDetail: validationDetail
+        )
+    }
+
+    private static func refreshWorkflowConfigsStatic(projectPath: String) -> [WorkflowItem] {
         let fm = FileManager.default
         struct CheckDef {
             let id: String
@@ -142,7 +158,7 @@ final class ProjectHealthState: @unchecked Sendable {
             ".gitleaks.toml": ".gitleaks.toml",
             ".doppler.yaml": ".doppler.yaml",
         ]
-        workflowItems = checks.map { check in
+        return checks.map { check in
             let exists = fm.fileExists(atPath: (projectPath as NSString).appendingPathComponent(check.path))
             return WorkflowItem(
                 id: check.id,
@@ -155,95 +171,66 @@ final class ProjectHealthState: @unchecked Sendable {
         }
     }
 
-    private func refreshGlobalTools() {
+    private static func probeGlobalTools() -> [GlobalToolItem] {
         struct ToolDef {
             let name: String
-            let checkCmd: String
+            let checkArgs: [String]
             let hint: String?
         }
         let tools = [
-            ToolDef(name: "swiftformat", checkCmd: "swiftformat --version 2>&1", hint: "brew install swiftformat"),
-            ToolDef(name: "swiftlint", checkCmd: "swiftlint version 2>&1", hint: "brew install swiftlint"),
-            ToolDef(name: "gitleaks", checkCmd: "gitleaks version 2>&1", hint: "brew install gitleaks"),
+            ToolDef(name: "swiftformat", checkArgs: ["--version"], hint: "brew install swiftformat"),
+            ToolDef(name: "swiftlint", checkArgs: ["version"], hint: "brew install swiftlint"),
+            ToolDef(name: "gitleaks", checkArgs: ["version"], hint: "brew install gitleaks"),
             ToolDef(
                 name: "sentrux",
-                checkCmd: "sentrux --version 2>&1",
+                checkArgs: ["--version"],
                 hint: "curl -fsSL https://raw.githubusercontent.com/sentrux/sentrux/main/install.sh | sh"
             ),
-            ToolDef(name: "graphify", checkCmd: "graphify --help 2>&1 | head -1", hint: "pip install graphifyy"),
-            ToolDef(name: "gh", checkCmd: "gh --version 2>&1 | head -1", hint: "brew install gh"),
+            ToolDef(name: "graphify", checkArgs: ["--help"], hint: "pip install graphifyy"),
+            ToolDef(name: "gh", checkArgs: ["--version"], hint: "brew install gh"),
         ]
-        globalTools = tools.map { tool in
-            let task = Process()
-            task.launchPath = "/bin/bash"
-            task.arguments = ["-c", tool.checkCmd]
-            let out = Pipe()
-            task.standardOutput = out
-            task.standardError = out
-            do {
-                try task.run()
-                task.waitUntilExit()
-                let data = out.fileHandleForReading.readDataToEndOfFile()
-                let version = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                let installed = task.terminationStatus == 0 && !(version?.isEmpty ?? true)
-                let location = installed ? which(tool.name) : nil
-                return GlobalToolItem(
-                    id: tool.name,
-                    name: tool.name,
-                    installed: installed,
-                    version: version,
-                    location: location,
-                    installHint: installed ? nil : tool.hint
-                )
-            } catch {
-                return GlobalToolItem(id: tool.name, name: tool.name, installed: false, installHint: tool.hint)
-            }
+        return tools.map { tool in
+            let result = ShellRunner.runTool(tool.name, arguments: tool.checkArgs)
+            return GlobalToolItem(
+                id: tool.name,
+                name: tool.name,
+                installed: result.installed,
+                version: result.version,
+                location: result.installed ? GitProcessRunner.resolveExecutable(tool.name) : nil,
+                installHint: result.installed ? nil : tool.hint
+            )
         }
     }
 
-    private func refreshCI(projectPath: String) {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", "cd '\(projectPath)' 2>/dev/null && gh run list --limit 1 --json conclusion,headBranch,createdAt,url 2>&1"]
-        let out = Pipe()
-        task.standardOutput = out
-        task.standardError = out
-        do {
-            try task.run()
-            task.waitUntilExit()
-            let data = out.fileHandleForReading.readDataToEndOfFile()
-            let text = String(data: data, encoding: .utf8) ?? ""
-            if let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [[String: Any]],
-               let first = json.first
-            {
-                let branch = first["headBranch"] as? String ?? "unknown"
-                let conclusion = first["conclusion"] as? String ?? "unknown"
-                let url = first["url"] as? String
-                let createdAt = first["createdAt"] as? String ?? ""
-                let ago = timeAgo(from: createdAt)
-                let statusType: CIStatusType = switch conclusion {
-                case "success": .passed
-                case "failure": .failed
-                case "cancelled": .unknown
-                default: .running
-                }
-                ciStatus = CIStatus(branch: branch, lastRunAgo: ago, status: statusType, url: url)
-            } else {
-                ciStatus = CIStatus(branch: "—", lastRunAgo: nil, status: .unknown)
+    private static func refreshCIStatic(projectPath: String) -> CIStatus {
+        let result = ShellRunner.run("gh run list --limit 1 --json conclusion,headBranch,createdAt,url 2>&1", workingDirectory: projectPath)
+        let text = result.output
+        if let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [[String: Any]],
+           let first = json.first
+        {
+            let branch = first["headBranch"] as? String ?? "unknown"
+            let conclusion = first["conclusion"] as? String ?? "unknown"
+            let url = first["url"] as? String
+            let createdAt = first["createdAt"] as? String ?? ""
+            let ago = Date.timeAgo(fromISO: createdAt)
+            let statusType: CIStatusType = switch conclusion {
+            case "success": .passed
+            case "failure": .failed
+            case "cancelled": .unknown
+            default: .running
             }
-        } catch {
-            ciStatus = CIStatus(branch: "—", lastRunAgo: nil, status: .unknown)
+            return CIStatus(branch: branch, lastRunAgo: ago, status: statusType, url: url)
         }
+        return CIStatus(branch: "—", lastRunAgo: nil, status: .unknown)
     }
 
-    private func refreshPiHistory() {
+    private static func refreshPiHistoryStatic() -> [PiExtensionEvent] {
         let logPath = NSString(string: "~/.pi/agent/agent-workflow.log").expandingTildeInPath
         guard let logData = try? String(contentsOfFile: logPath, encoding: .utf8) else {
-            piEvents = []
-            return
+            return []
         }
         let lines = logData.components(separatedBy: .newlines).filter { !$0.isEmpty }
-        piEvents = lines.compactMap { line in
+        return lines.compactMap { line in
             let parts = line.components(separatedBy: " — ")
             guard parts.count >= 2 else { return nil }
             let event = parts[0].trimmingCharacters(in: .whitespaces)
@@ -252,75 +239,31 @@ final class ProjectHealthState: @unchecked Sendable {
         }
     }
 
-    private func refreshQuality(projectPath: String) {
+    private static func refreshQualityStatic(projectPath: String) -> (qualityScore: Int, godFileCount: Int) {
         let baselinePath = (projectPath as NSString).appendingPathComponent(".sentrux/baseline.json")
         if let data = try? Data(contentsOf: URL(fileURLWithPath: baselinePath)),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         {
-            if let score = json["quality_signal"] as? Double {
-                qualityScore = Int(score * 10000)
-            }
-            godFileCount = json["god_file_count"] as? Int ?? 0
+            let score = (json["quality_signal"] as? Double).map { Int($0 * 10000) } ?? 0
+            let godFiles = json["god_file_count"] as? Int ?? 0
+            return (score, godFiles)
         }
+        return (0, 0)
     }
 
-    private func which(_ tool: String) -> String? {
-        let task = Process()
-        task.launchPath = "/usr/bin/which"
-        task.arguments = [tool]
-        let out = Pipe()
-        task.standardOutput = out
-        try? task.run()
-        task.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        return path?.isEmpty == false ? path : nil
-    }
-
-    private func timeAgo(from isoString: String) -> String {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        guard let date = f.date(from: isoString) ?? ISO8601DateFormatter().date(from: isoString) else { return "" }
-        let interval = -date.timeIntervalSinceNow
-        switch interval {
-        case ..<60: return "\(Int(interval))s ago"
-        case ..<3600: return "\(Int(interval / 60))m ago"
-        case ..<86400: return "\(Int(interval / 3600))h ago"
-        default: return "\(Int(interval / 86400))d ago"
+    private static func runValidationStatic(projectPath: String) -> (passed: Bool?, detail: String?) {
+        let validateScript = Bundle.main.path(forResource: "validate-workflow", ofType: "sh", inDirectory: "Scripts")
+            ?? (Bundle.main.bundlePath as NSString).appendingPathComponent("Contents/Resources/Scripts/validate-workflow.sh")
+        guard FileManager.default.fileExists(atPath: validateScript) else {
+            return (nil, "validate-workflow.sh not bundled")
         }
-    }
 
-    private func installWatcher(projectPath: String) {
-        guard watchedProjectPath != projectPath else { return }
-        watchedProjectPath = projectPath
-        watcher = GitDirectoryWatcher(directoryPath: projectPath) { [weak self] in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.refresh(projectPath: projectPath)
-            }
+        let result = ShellRunner.run("'\(validateScript)' --ci 2>&1", workingDirectory: projectPath)
+        let passed = result.exitCode == 0
+        var detail: String?
+        if let resultsLine = result.output.components(separatedBy: .newlines).last(where: { $0.contains("passed") }) {
+            detail = resultsLine.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-    }
-
-    private func observeRemoteChanges(projectPath: String) {
-        guard watchedProjectPath != projectPath else { return }
-        let path = projectPath
-        remoteChangeObserver = NotificationCenter.default.addObserver(
-            forName: .vcsRepoDidChange,
-            object: nil,
-            queue: .main
-        ) { [weak self] notification in
-            guard let notifiedPath = notification.userInfo?["repoPath"] as? String,
-                  notifiedPath == path
-            else { return }
-            MainActor.assumeIsolated {
-                self?.refresh(projectPath: path)
-            }
-        }
-    }
-
-    deinit {
-        if let observer = remoteChangeObserver {
-            NotificationCenter.default.removeObserver(observer)
-        }
+        return (passed, detail)
     }
 }

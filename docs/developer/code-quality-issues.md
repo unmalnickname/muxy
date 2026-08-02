@@ -2,75 +2,36 @@
 
 This document tracks code quality issues found in the Muxy codebase.
 
-## 1. Silent Error Catching
+## 1. Silent Error Catching — RESOLVED
 
 ### Location
-- `Muxy/Models/PipelineState.swift:150`
+- `Muxy/Models/PipelineState.swift:156`
 
-### Issue
-```swift
-} catch {}  // Swallows all errors silently
-```
-
-### Impact
-Workflow loading failures are invisible to users. No logging, no fallback, no user feedback.
-
-### Recommended Fix
-```swift
-} catch {
-    print("Failed to load workflows from \(file): \(error)")
-    // Optionally: skip invalid workflows but continue loading others
-}
-```
+### Status
+Fixed. Error is now logged with `print("[PipelineState] Failed to load workflows from \(workflowsDir): \(error)")`.
 
 ---
 
-## 2. Hardcoded Shell Path
+## 2. Hardcoded Shell Path — RESOLVED
 
 ### Location
-Multiple files use `/bin/bash` directly:
-- `Muxy/Models/ProjectHealthState.swift:86,172,200`
-- `Muxy/Models/PipelineState.swift:286,494`
-- `Muxy/Views/Health/ProjectHealthPanel.swift:387,485`
+- `Muxy/Models/PipelineState.swift`
+- `Muxy/Models/ProjectHealthState.swift`
+- `Muxy/Views/Health/ProjectHealthPanel.swift`
 
-### Issue
-```swift
-task.launchPath = "/bin/bash"
-```
-
-### Impact
-- macOS may move bash in future releases
-- `/usr/bin/env bash` is more portable
-- Prevents running on systems where bash isn't at /bin
-
-### Recommended Fix
-```swift
-task.launchPath = "/usr/bin/env"
-task.arguments = ["bash", "-c", "..."]
-```
+### Status
+Fixed. All inline `Process()` usage replaced with `ShellRunner` which uses `GitProcessRunner.resolveExecutable("bash")` to find the shell path dynamically.
 
 ---
 
-## 3. Silent `2>/dev/null` Suppression
+## 3. Silent `2>/dev/null` Suppression — RESOLVED
 
 ### Location
-Multiple commands in `PipelineState.swift` and `ProjectHealthState.swift`
+- `Muxy/Models/PipelineState.swift`
+- `Muxy/Models/ProjectHealthState.swift`
 
-### Issue
-```bash
-cd '\(projectPath)' 2>/dev/null && git rev-parse 2>/dev/null
-```
-
-### Impact
-- Command failures are invisible
-- Hard to debug when features break
-- User sees "pending" or "skipped" with no explanation
-
-### Recommended Fix
-Only suppress stderr for expected non-fatal output:
-```bash
-cd '\(projectPath)' && git rev-parse 2>&1 || echo "git-error"
-```
+### Status
+Fixed. `ShellRunner` uses `workingDirectory` parameter instead of `cd ... 2>/dev/null`. Stderr suppression kept only for non-critical git commands where failure is expected.
 
 ---
 
@@ -97,9 +58,25 @@ This is generally acceptable but should be reviewed per-case.
 
 ---
 
+## 5. Duplicated Code — RESOLVED
+
+### Location
+- `PipelineState.swift` — private `shell()` method
+- `ProjectHealthState.swift` — inline `Process()` ×4
+- `ProjectHealthPanel.swift` — `runAction()` / `runActionWithOutput()`
+- `PipelineState.swift`, `ProjectHealthState.swift`, `PipelinePanel.swift` — `timeAgo()` ×3
+
+### Status
+Fixed. Extracted:
+- `ShellRunner` service (`Muxy/Services/ShellRunner.swift`) — replaces all inline Process/shell usage
+- `Date.timeAgo(since:)` extension (`Muxy/Extensions/TimeFormatting.swift`) — replaces 3 duplicate timeAgo implementations
+
+---
+
 ## Priority
 
-1. **High**: Silent error catching (#1)
-2. **Medium**: Shell path portability (#2)
+1. **~~High~~**: Silent error catching (#1) — RESOLVED
+2. **~~Medium~~**: Shell path portability (#2) — RESOLVED
 3. **Low**: Debug blocks (#4)
-4. **Consider**: `2>/dev/null` suppression (#3)
+4. **~~Consider~~**: `2>/dev/null` suppression (#3) — RESOLVED
+5. **~~Medium~~**: Duplicated code (#5) — RESOLVED

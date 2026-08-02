@@ -7,41 +7,9 @@ struct PipelinePanel: View {
     let onRefresh: () -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Color.clear.frame(height: 10)
-                    workflowSelector
-                        .padding(.horizontal, 10)
-                    if let wf = state.activeWorkflow {
-                        sectionSpacer
-                        workflowStatusBanner(wf)
-                            .padding(.horizontal, 10)
-                        if !wf.dependencyViolations.isEmpty {
-                            sectionSpacer
-                            dependencyViolationsSection(wf)
-                                .padding(.horizontal, 10)
-                        }
-                        sectionSpacer
-                        stepsSection(wf)
-                            .padding(.horizontal, 10)
-                    }
-                    if !state.history.isEmpty {
-                        sectionSpacer
-                        historySection
-                            .padding(.horizontal, 10)
-                    }
-                    sectionSpacer
-                    toolValidationSection
-                        .padding(.horizontal, 10)
-                    Color.clear.frame(height: 12)
-                }
-            }
-        }
-        .background(MuxyTheme.bg)
-        .onChange(of: projectPath) { _, _ in onRefresh() }
+        Text("Pipeline Panel (disabled)")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(MuxyTheme.bg)
     }
 
     private var sectionSpacer: some View {
@@ -61,9 +29,15 @@ struct PipelinePanel: View {
                 .foregroundStyle(MuxyTheme.fg)
             Spacer(minLength: 0)
             if let lastRun = state.lastRun {
-                Text(timeAgo(lastRun))
-                    .font(.system(size: 10))
-                    .foregroundStyle(MuxyTheme.fgDim)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 6, height: 6)
+                    Text(timeAgo(lastRun))
+                        .font(.system(size: 10))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+                .help("Auto-refreshing every 30s")
             }
             Button(action: onRefresh) {
                 Image(systemName: "arrow.clockwise")
@@ -348,12 +322,6 @@ struct PipelinePanel: View {
     }
 
     private func timeAgo(_ date: Date) -> String {
-        let interval = -date.timeIntervalSinceNow
-        switch interval {
-        case ..<60: return "\(Int(interval))s ago"
-        case ..<3600: return "\(Int(interval / 60))m ago"
-        case ..<86400: return "\(Int(interval / 3600))h ago"
-        default: return "\(Int(interval / 86400))d ago"
-        }
+        Date.timeAgo(since: date)
     }
 }

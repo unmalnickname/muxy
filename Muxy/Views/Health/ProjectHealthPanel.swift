@@ -8,42 +8,9 @@ struct ProjectHealthPanel: View {
     let onOpenFile: (String) -> Void
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            Rectangle().fill(MuxyTheme.border).frame(height: 1)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    Color.clear.frame(height: 10)
-                    qualitySection
-                        .padding(.horizontal, 10)
-                    sectionSpacer
-                    validationSection
-                        .padding(.horizontal, 10)
-                    sectionSpacer
-                    workflowSection
-                        .padding(.horizontal, 10)
-                    sectionSpacer
-                    toolsSection
-                        .padding(.horizontal, 10)
-                    if state.ciStatus != nil {
-                        sectionSpacer
-                        ciSection
-                            .padding(.horizontal, 10)
-                    }
-                    if !state.piEvents.isEmpty {
-                        sectionSpacer
-                        piSection
-                            .padding(.horizontal, 10)
-                    }
-                    sectionSpacer
-                    actionsSection
-                        .padding(.horizontal, 10)
-                    Color.clear.frame(height: 12)
-                }
-            }
-        }
-        .background(MuxyTheme.bg)
-        .onChange(of: projectPath) { _, _ in onRefresh() }
+        Text("Health Panel (disabled)")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(MuxyTheme.bg)
     }
 
     private var sectionSpacer: some View {
@@ -62,15 +29,27 @@ struct ProjectHealthPanel: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(MuxyTheme.fg)
             Spacer(minLength: 0)
+            if let lastRefresh = state.lastRefresh {
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(.green)
+                        .frame(width: 6, height: 6)
+                    Text(Date.timeAgo(since: lastRefresh))
+                        .font(.system(size: 10))
+                        .foregroundStyle(MuxyTheme.fgDim)
+                }
+                .help("Auto-refreshing every 30s")
+            }
             Button(action: onRefresh) {
-                Image(systemName: "arrow.clockwise")
+                Image(systemName: state.isLoading ? "arrow.clockwise.circle.fill" : "arrow.clockwise")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(MuxyTheme.fgMuted)
+                    .foregroundStyle(state.isLoading ? MuxyTheme.accent : MuxyTheme.fgMuted)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Refresh")
+            .disabled(state.isLoading)
+            .help(state.isLoading ? "Loading..." : "Refresh (includes CI + validation)")
         }
         .padding(.horizontal, 10)
         .frame(height: 32)
@@ -383,10 +362,7 @@ struct ProjectHealthPanel: View {
     }
 
     private func runAction(_ command: String) {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", command]
-        try? task.run()
+        ShellRunner.runAction(command, workingDirectory: projectPath)
     }
 
     private func confirmAndFix() {
@@ -481,16 +457,6 @@ struct ProjectHealthPanel: View {
     }
 
     private func runActionWithOutput(_ command: String) -> String {
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = ["-c", command]
-        let out = Pipe()
-        task.standardOutput = out
-        task.standardError = out
-        try? task.run()
-        task.waitUntilExit()
-        let data = out.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return task.terminationStatus == 0 ? "OK" : "Failed: \(output.prefix(200))"
+        ShellRunner.runWithOutput(command, workingDirectory: projectPath)
     }
 }

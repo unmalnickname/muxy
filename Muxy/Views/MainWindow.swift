@@ -27,9 +27,8 @@ struct MainWindow: View {
     @AppStorage("muxy.fileTreeWidth") private var fileTreePanelWidth: Double = .init(FileTreeLayout.defaultWidth)
     @State private var fileTreeStates: [WorktreeKey: FileTreeState] = [:]
     @State private var healthPanelVisible = false
-    @State private var healthState = ProjectHealthState()
     @State private var pipelinePanelVisible = false
-    @State private var pipelineState = PipelineState()
+    @State private var monitor = ProjectMonitorCoordinator()
     @State private var showQuickOpen = false
     @State private var showWorktreeSwitcher = false
     @State private var isFullScreen = false
@@ -130,12 +129,12 @@ struct MainWindow: View {
             .onReceive(NotificationCenter.default.publisher(for: .toggleFileTree)) { _ in
                 toggleFileTreePanel()
             }
-            .onReceive(NotificationCenter.default.publisher(for: .toggleHealth)) { _ in
-                toggleHealthPanel()
-            }
+            // DEBUG: Disabled to test freeze - .onReceive(NotificationCenter.default.publisher(for: .toggleHealth)) { _ in
+                // toggleHealthPanel()
+            // }
             .modifier(PipelinePanelHost(
                 pipelinePanelVisible: $pipelinePanelVisible,
-                pipelineState: pipelineState
+                pipelineState: monitor.pipeline
             ))
             .onChange(of: vcsPruneSignature) {
                 pruneVCSStates()
@@ -149,11 +148,8 @@ struct MainWindow: View {
                 if fileTreePanelVisible {
                     ensureFileTreeState(for: project)
                 }
-                if healthPanelVisible {
-                    healthState.refresh(projectPath: activeWorktreePath(for: project))
-                }
-                if pipelinePanelVisible {
-                    pipelineState.refresh(projectPath: activeWorktreePath(for: project))
+                if healthPanelVisible || pipelinePanelVisible {
+                    // monitor.startMonitoring(projectPath: activeWorktreePath(for: project))
                 }
             }
             .modifier(FileTreeSelectionSync(
@@ -221,17 +217,18 @@ struct MainWindow: View {
                     fileTreePanelWidth: $fileTreePanelWidth,
                     fileTreeStates: fileTreeStates,
                     healthPanelVisible: $healthPanelVisible,
-                    healthState: healthState
+                    healthState: monitor.health,
+                    onHealthRefresh: { monitor.refreshHealth() }
                 )
 
                 if pipelinePanelVisible, let project = activeProject {
                     HStack(spacing: 0) {
                         PipelinePanel(
-                            state: pipelineState,
+                            state: monitor.pipeline,
                             projectPath: activeWorktreePath(for: project),
                             projectName: project.name,
                             onRefresh: {
-                                pipelineState.refresh(projectPath: activeWorktreePath(for: project))
+                                monitor.refreshPipeline()
                             }
                         )
                         .frame(width: 320)
@@ -617,33 +614,11 @@ struct MainWindow: View {
     }
 
     private func toggleHealthPanel() {
-        guard let project = activeProject else {
-            healthPanelVisible = false
-            return
-        }
-        let isShowing = !healthPanelVisible
-        healthPanelVisible = isShowing
-        if isShowing {
-            vcsPanelVisible = false
-            fileTreePanelVisible = false
-            pipelinePanelVisible = false
-            healthState.refresh(projectPath: activeWorktreePath(for: project))
-        }
+        // Debug: do nothing
     }
 
     private func togglePipelinePanel() {
-        guard let project = activeProject else {
-            pipelinePanelVisible = false
-            return
-        }
-        let isShowing = !pipelinePanelVisible
-        pipelinePanelVisible = isShowing
-        if isShowing {
-            vcsPanelVisible = false
-            fileTreePanelVisible = false
-            healthPanelVisible = false
-            pipelineState.refresh(projectPath: activeWorktreePath(for: project))
-        }
+        // Debug: do nothing
     }
 
     private func toggleFileTreePanel() {
@@ -861,6 +836,7 @@ private struct MainContentArea: View {
     let fileTreeStates: [WorktreeKey: FileTreeState]
     @Binding var healthPanelVisible: Bool
     let healthState: ProjectHealthState
+    let onHealthRefresh: () -> Void
 
     var body: some View {
         HStack(spacing: 0) {
@@ -901,64 +877,65 @@ private struct MainContentArea: View {
                 }
             }
 
-            if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { delta in
-                        vcsPanelWidth = max(200, min(800, vcsPanelWidth - delta))
-                    }
-                    VCSTabView(state: state, focused: false, onFocus: {})
-                        .frame(width: vcsPanelWidth)
-                }
-            } else if fileTreePanelVisible, let treeState = activeFileTreeState {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { delta in
-                        let next = fileTreePanelWidth - Double(delta)
-                        fileTreePanelWidth = max(180.0, min(600.0, next))
-                    }
-                    FileTreeView(
-                        state: treeState,
-                        onOpenFile: { filePath in
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.openFile(filePath, projectID: projectID, preserveFocus: true)
-                        },
-                        onOpenTerminal: { directory in
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.dispatch(.createTabInDirectory(
-                                projectID: projectID,
-                                areaID: nil,
-                                directory: directory
-                            ))
-                        },
-                        onFileMoved: { oldPath, newPath in
-                            appState.handleFileMoved(from: oldPath, to: newPath)
-                        }
-                    )
-                    .id(treeState.rootPath)
-                    .frame(width: CGFloat(fileTreePanelWidth))
-                }
-            } else if healthPanelVisible, let project = activeProject {
-                HStack(spacing: 0) {
-                    sidePanelResizeHandle { _ in
-                        healthPanelVisible = false
-                    }
-                    ProjectHealthPanel(
-                        state: healthState,
-                        projectPath: activeProjectPath(for: project),
-                        projectName: project.name,
-                        onRefresh: {
-                            healthState.refresh(projectPath: activeProjectPath(for: project))
-                        },
-                        onOpenFile: { relativePath in
-                            healthPanelVisible = false
-                            let basePath = activeProjectPath(for: project)
-                            let fullPath = basePath.hasSuffix("/") ? basePath + relativePath : basePath + "/" + relativePath
-                            guard let projectID = appState.activeProjectID else { return }
-                            appState.openFile(fullPath, projectID: projectID)
-                        }
-                    )
-                    .frame(width: 320)
-                }
-            }
+            // ALL PANELS DISABLED FOR DEBUG
+            // if vcsPanelVisible, VCSDisplayMode.current == .attached, let state = activeVCSState {
+            //     HStack(spacing: 0) {
+            //         sidePanelResizeHandle { delta in
+            //             vcsPanelWidth = max(200, min(800, vcsPanelWidth - delta))
+            //         }
+            //         VCSTabView(state: state, focused: false, onFocus: {})
+            //             .frame(width: vcsPanelWidth)
+            //     }
+            // } else if fileTreePanelVisible, let treeState = activeFileTreeState {
+            //     HStack(spacing: 0) {
+            //         sidePanelResizeHandle { delta in
+            //             let next = fileTreePanelWidth - Double(delta)
+            //             fileTreePanelWidth = max(180.0, min(600.0, next))
+            //         }
+            //         FileTreeView(
+            //             state: treeState,
+            //             onOpenFile: { filePath in
+            //                 guard let projectID = appState.activeProjectID else { return }
+            //                 appState.openFile(filePath, projectID: projectID, preserveFocus: true)
+            //             },
+            //             onOpenTerminal: { directory in
+            //                 guard let projectID = appState.activeProjectID else { return }
+            //                 appState.dispatch(.createTabInDirectory(
+            //                     projectID: projectID,
+            //                     areaID: nil,
+            //                     directory: directory
+            //                 ))
+            //             },
+            //             onFileMoved: { oldPath, newPath in
+            //                 appState.handleFileMoved(from: oldPath, to: newPath)
+            //             }
+            //         )
+            //         .id(treeState.rootPath)
+            //         .frame(width: CGFloat(fileTreePanelWidth))
+            //     }
+            // } else if healthPanelVisible, let project = activeProject {
+            //     HStack(spacing: 0) {
+            //         sidePanelResizeHandle { _ in
+            //             healthPanelVisible = false
+            //         }
+            //         ProjectHealthPanel(
+            //             state: healthState,
+            //             projectPath: activeProjectPath(for: project),
+            //             projectName: project.name,
+            //             onRefresh: {
+            //                 onHealthRefresh()
+            //             },
+            //             onOpenFile: { relativePath in
+            //                 healthPanelVisible = false
+            //                 let basePath = activeProjectPath(for: project)
+            //                 let fullPath = basePath.hasSuffix("/") ? basePath + relativePath : basePath + "/" + relativePath
+            //                 guard let projectID = appState.activeProjectID else { return }
+            //                 appState.openFile(fullPath, projectID: projectID)
+            //             }
+            //         )
+            //         .frame(width: 320)
+            //     }
+            // }
         }
     }
 
